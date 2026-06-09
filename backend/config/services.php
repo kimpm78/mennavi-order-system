@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'payjp' => [
+        'secret_key' => env('PAYJP_SECRET_KEY'),
+        'public_key' => env('PAYJP_PUBLIC_KEY'),
+        'webhook_token' => env('PAYJP_WEBHOOK_TOKEN'),
+    ],
+
 ];
