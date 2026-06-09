@@ -72,13 +72,16 @@ Users:
 - `email` is the login ID and must be unique.
 - `password` must be hashed before storage.
 - `role` must distinguish `user` and `admin`.
+- `status` must distinguish `active`, `suspended`, and `withdrawn`.
+- `last_login_at` stores the last successful login timestamp.
 - `phone`, `postal_code`, and `address` are optional.
 - `deleted_at` is allowed for logical deletes.
 - Do not make `password` unique, even though the spreadsheet notes it; password uniqueness is not useful or appropriate.
+- Initial admin account for local development: `email=admin@mennavi.local`, password `admin1234`.
 
 Categories:
 - `display_order` controls display order.
-- `is_active` controls visibility.
+- `is_active` controls visibility. Use `true` for visible and `false` for hidden.
 
 Products:
 - Products belong to categories.
@@ -89,7 +92,7 @@ Orders:
 - `order_number` is unique and shown to users.
 - `user_id` can be nullable for guest orders.
 - `total_amount` must match order_items subtotals.
-- `order_status` should support received, cooking, completed, and canceled.
+- `order_status` should be a string and support `received`, `cooking`, `completed`, and `canceled`.
 
 Order items:
 - Store product name and unit price at order time.
@@ -98,6 +101,19 @@ Order items:
 Carts:
 - Support both logged-in users and guest sessions.
 - cart_items must belong to carts and products.
+- `cart_items` should be unique by `(cart_id, product_id)`.
+
+Database constraints:
+- `products.price >= 0`
+- `cart_items.quantity >= 1`
+- `orders.total_amount >= 0`
+- `order_items.unit_price >= 0`
+- `order_items.quantity >= 1`
+- `order_items.subtotal >= 0`
+- `products.status IN ('active', 'sold_out', 'hidden')`
+- `orders.order_status IN ('received', 'cooking', 'completed', 'canceled')`
+- `users.role IN ('user', 'admin')`
+- `users.status IN ('active', 'suspended', 'withdrawn')`
 
 ## Current Implementation Direction
 
@@ -105,3 +121,4 @@ Carts:
 - Laravel API base URL for the Vue app: `http://127.0.0.1:8000/api`.
 - Vue dev URL: `http://127.0.0.1:5173`.
 - PostgreSQL host port: `5433`, container port: `5432`.
+- PostgreSQL development user/password: `mennavi` / `Mennavi1234`.

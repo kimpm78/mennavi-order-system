@@ -1,0 +1,385 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+  min-height: 100svh;
+}
+
+.brand-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 48px;
+  padding: 64px;
+  text-align: left;
+  color: #fff;
+  background:
+    linear-gradient(90deg, rgba(12, 7, 6, 0.64), rgba(12, 7, 6, 0.34)),
+    linear-gradient(rgba(28, 12, 10, 0.24), rgba(28, 12, 10, 0.24)),
+    url('/images/mennavi-login.png') center / cover;
+}
+
+.brand-copy {
+  display: grid;
+  justify-items: start;
+  max-width: 680px;
+}
+
+.brand-logo {
+  width: 92px;
+  height: auto;
+  margin: 14px 0 26px;
+}
+
+.brand-panel h1 {
+  max-width: 680px;
+  margin: 12px 0 18px;
+  font-size: clamp(42px, 7vw, 84px);
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.lead {
+  max-width: 540px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 19px;
+  line-height: 1.7;
+}
+
+.eyebrow {
+  margin: 0;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+  width: min(100%, 560px);
+  margin: 0 auto;
+  padding: 48px;
+  background: var(--surface);
+}
+
+.panel-header h2 {
+  margin: 8px 0;
+  font-size: 34px;
+  line-height: 1.14;
+  letter-spacing: 0;
+}
+
+.panel-header p:last-child {
+  margin: 0;
+  color: var(--muted);
+}
+
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.mode-tabs button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.mode-tabs button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(26, 37, 30, 0.08);
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 13px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(35, 97, 77, 0.14);
+}
+
+.primary-button {
+  min-height: 50px;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 18px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: var(--shadow);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--primary-strong);
+}
+
+.text-link {
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.message {
+  margin: 0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.message.error {
+  background: var(--warning-bg);
+  color: var(--accent);
+}
+
+.message.success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.account-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.account-summary div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--surface-muted);
+}
+
+.account-summary span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.account-summary strong {
+  text-align: right;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+}
+
+.ramen-hero {
+  position: relative;
+  min-height: 400px;
+  background:
+    linear-gradient(90deg, rgba(17, 17, 17, 0.72), rgba(17, 17, 17, 0.34)),
+    radial-gradient(circle at 72% 28%, rgba(255, 230, 163, 0.9) 0 8%, transparent 9%),
+    radial-gradient(circle at 78% 50%, rgba(245, 196, 63, 0.9) 0 7%, transparent 8%),
+    radial-gradient(circle at 65% 34%, rgba(31, 128, 58, 0.95) 0 9%, transparent 10%),
+    radial-gradient(circle at 58% 62%, rgba(151, 75, 36, 0.96) 0 18%, transparent 19%),
+    repeating-linear-gradient(100deg, rgba(241, 210, 144, 0.86) 0 8px, rgba(221, 178, 93, 0.86) 8px 14px),
+    #b88549;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.ramen-photo {
+  position: relative;
+  min-height: 194px;
+  overflow: hidden;
+  background-color: #d9c7a7;
+}
+
+.ramen-photo::before,
+.ramen-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.ramen-photo::before {
+  background:
+    radial-gradient(circle at 48% 52%, rgba(246, 232, 184, 0.95) 0 22%, transparent 23%),
+    radial-gradient(circle at 46% 52%, rgba(116, 73, 36, 0.95) 0 35%, transparent 36%),
+    radial-gradient(circle at 48% 52%, rgba(38, 77, 45, 0.72) 0 43%, transparent 44%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.38), transparent 45%);
+}
+
+.ramen-photo::after {
+  opacity: 0.86;
+  background:
+    repeating-linear-gradient(102deg, transparent 0 9px, rgba(255, 221, 143, 0.72) 9px 14px),
+    radial-gradient(circle at 68% 33%, rgba(249, 207, 59, 0.92) 0 10%, transparent 11%),
+    radial-gradient(circle at 34% 35%, rgba(56, 128, 64, 0.88) 0 7%, transparent 8%);
+  mix-blend-mode: multiply;
+}
+
+.nearby-photo {
+  min-height: 128px;
+  border-radius: 6px;
+}
+
+.store-map {
+  position: relative;
+  min-height: 196px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #d7e2d8;
+  background:
+    linear-gradient(90deg, rgba(91, 176, 167, 0.5) 0 18%, transparent 19%),
+    repeating-linear-gradient(0deg, transparent 0 31px, rgba(167, 184, 174, 0.5) 32px 34px),
+    repeating-linear-gradient(90deg, transparent 0 46px, rgba(167, 184, 174, 0.5) 47px 49px),
+    #edf1e8;
+}
+
+.store-map::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(134deg, transparent 0 36%, rgba(238, 250, 239, 0.95) 37% 43%, transparent 44%),
+    radial-gradient(circle at 34% 48%, #b9574b 0 4px, transparent 5px),
+    radial-gradient(circle at 69% 43%, #b9574b 0 4px, transparent 5px),
+    radial-gradient(circle at 51% 76%, #4d7189 0 4px, transparent 5px);
+}
+
+.ramen-photo-shop {
+  background:
+    linear-gradient(180deg, rgba(30, 24, 18, 0.05), rgba(30, 24, 18, 0.62)),
+    repeating-linear-gradient(90deg, #875734 0 14px, #b77d49 14px 22px),
+    linear-gradient(#e8c89a, #c18a55);
+}
+
+.ramen-photo-shop::before {
+  background:
+    linear-gradient(180deg, transparent 0 55%, rgba(24, 18, 14, 0.72) 56%),
+    radial-gradient(circle at 48% 35%, rgba(255, 238, 211, 0.55) 0 11%, transparent 12%);
+}
+
+.ramen-photo-bowl {
+  background-color: #726048;
+}
+
+.ramen-photo-miso {
+  background-color: #a0452b;
+}
+
+.ramen-photo-noodle {
+  background-color: #25231d;
+}
+
+.ramen-photo-spicy {
+  background-color: #c14328;
+}
+
+.ramen-photo-clear {
+  background-color: #e6dfc8;
+}
+
+.ramen-photo-night {
+  background:
+    linear-gradient(180deg, rgba(54, 20, 13, 0.05), rgba(20, 10, 6, 0.72)),
+    repeating-linear-gradient(90deg, #54190f 0 16px, #b9481d 16px 22px),
+    #29100b;
+}
+
+.food-photo-sushi {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 28% 52%, #f06d3a 0 8%, transparent 9%),
+    radial-gradient(circle at 46% 48%, #f6a74f 0 8%, transparent 9%),
+    radial-gradient(circle at 62% 50%, #d83c3c 0 8%, transparent 9%),
+    radial-gradient(circle at 78% 50%, #f3f2e7 0 8%, transparent 9%),
+    linear-gradient(160deg, #101615, #28302a);
+}
+
+.food-photo-burger {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 36%, #d58a35 0 25%, transparent 26%),
+    linear-gradient(0deg, transparent 0 42%, #387835 43% 48%, #f5cc47 49% 55%, #612914 56% 70%, transparent 71%),
+    linear-gradient(160deg, #111, #4a3420);
+}
+
+.food-thumb-salad {
+  background:
+    radial-gradient(circle at 35% 40%, #53a34b 0 16%, transparent 17%),
+    radial-gradient(circle at 56% 52%, #e7b14a 0 12%, transparent 13%),
+    radial-gradient(circle at 70% 35%, #d44836 0 10%, transparent 11%),
+    #e9eee6;
+}
+
+.food-thumb-pizza {
+  background:
+    radial-gradient(circle at 50% 52%, #b63b20 0 26%, transparent 27%),
+    radial-gradient(circle at 50% 52%, #e8c66a 0 38%, transparent 39%),
+    #1c1714;
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-panel {
+    min-height: 42svh;
+    padding: 36px 24px;
+  }
+
+  .brand-panel h1 {
+    font-size: 42px;
+  }
+
+  .auth-panel {
+    width: 100%;
+    padding: 32px 24px;
+  }
+}
