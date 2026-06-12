@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ChevronLeft, LogOut, MapPin, Package, UserRound } from 'lucide-vue-next'
 import { apiRequest, authHeaders } from '../../lib/api'
 import { getCustomerToken } from '../../lib/authStorage'
@@ -47,8 +47,12 @@ const ordersLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const ordersErrorMessage = ref('')
+const postalCodeLoading = ref(false)
+const postalCodeMessage = ref('')
 const orders = ref<OrderHistory[]>([])
 const loadedOrders = ref(false)
+let postalCodeTimer: number | undefined
+let lastSearchedPostalCode = ''
 
 const sectionTitle = computed(() => {
   if (activeSection.value === 'profile') {
@@ -86,6 +90,37 @@ watch(
     selectSection(section)
   },
 )
+
+watch(
+  () => form.postal_code,
+  (postalCode) => {
+    postalCodeMessage.value = ''
+
+    if (postalCodeTimer) {
+      window.clearTimeout(postalCodeTimer)
+    }
+
+    const normalizedPostalCode = normalizePostalCode(postalCode)
+    if (normalizedPostalCode.length !== 7) {
+      lastSearchedPostalCode = ''
+      return
+    }
+
+    if (normalizedPostalCode === lastSearchedPostalCode) {
+      return
+    }
+
+    postalCodeTimer = window.setTimeout(() => {
+      searchAddressByPostalCode(normalizedPostalCode)
+    }, 400)
+  },
+)
+
+onBeforeUnmount(() => {
+  if (postalCodeTimer) {
+    window.clearTimeout(postalCodeTimer)
+  }
+})
 
 async function saveDeliveryInfo() {
   const token = getCustomerToken()
@@ -150,6 +185,32 @@ async function loadOrders() {
   } finally {
     ordersLoading.value = false
   }
+}
+
+async function searchAddressByPostalCode(postalCode: string) {
+  postalCodeLoading.value = true
+  postalCodeMessage.value = ''
+  lastSearchedPostalCode = postalCode
+
+  try {
+    const response = await apiRequest<{
+      postal_code: string
+      address: string
+    }>(`/postal-code/${postalCode}`)
+
+    form.postal_code = response.postal_code
+    form.address = response.address
+    postalCodeMessage.value = '郵便番号から住所を入力しました。番地・建物名を追記してください。'
+  } catch (error) {
+    postalCodeMessage.value = error instanceof Error ? error.message : '住所検索に失敗しました。'
+    lastSearchedPostalCode = ''
+  } finally {
+    postalCodeLoading.value = false
+  }
+}
+
+function normalizePostalCode(value: string) {
+  return value.replace(/\D/g, '')
 }
 
 function formatPrice(price: number) {
@@ -318,6 +379,17 @@ function orderStatusLabel(status: string) {
                 type="text"
                 placeholder="150-0041"
               />
+              <span
+                v-if="postalCodeLoading || postalCodeMessage"
+                :class="[
+                  'text-xs font-bold leading-5',
+                  postalCodeMessage.includes('失敗') || postalCodeMessage.includes('見つかりません') || postalCodeMessage.includes('入力してください')
+                    ? 'text-red-700'
+                    : 'text-neutral-500',
+                ]"
+              >
+                {{ postalCodeLoading ? '住所を検索しています...' : postalCodeMessage }}
+              </span>
             </label>
           </div>
 

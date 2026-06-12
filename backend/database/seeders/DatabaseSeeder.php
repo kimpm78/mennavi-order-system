@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -36,12 +37,37 @@ class DatabaseSeeder extends Seeder
                 'password' => Hash::make('password123'),
                 'role' => 'user',
                 'status' => 'active',
+                'postal_code' => '1500041',
+                'address' => '東京都渋谷区神南',
             ],
         );
 
-        $mainCategory = Category::updateOrCreate(
-            ['name' => 'メイン'],
+        $defaultCategories = [
+            ['name' => 'メイン', 'display_order' => 1],
+            ['name' => 'トッピング', 'display_order' => 2],
+            ['name' => 'サイド', 'display_order' => 3],
+            ['name' => 'ドリンク & お酒', 'display_order' => 4],
+        ];
+
+        foreach ($defaultCategories as $category) {
+            Category::updateOrCreate(
+                ['name' => $category['name']],
+                [
+                    'display_order' => $category['display_order'],
+                    'is_active' => true,
+                ],
+            );
+        }
+
+        $mainCategory = Category::where('name', 'メイン')->firstOrFail();
+        $store = Store::updateOrCreate(
+            ['name' => '麺処 極 -KIWAMI-'],
             [
+                'description' => '24時間かけて丁寧に炊き上げた濃厚豚骨スープと、特製極細麺が織りなす至極の一杯。奥深い旨みと上品な香りをお楽しみください。',
+                'address' => '東京都渋谷区神南 1-2-3',
+                'rating' => 4.8,
+                'review_count' => 2400,
+                'budget_label' => '予算: ¥1,000〜¥2,000',
                 'display_order' => 1,
                 'is_active' => true,
             ],
@@ -83,6 +109,7 @@ class DatabaseSeeder extends Seeder
                 ['id' => $product['id']],
                 [
                     'category_id' => $mainCategory->id,
+                    'store_id' => $store->id,
                     'name' => $product['name'],
                     'description' => $product['description'],
                     'price' => $product['price'],

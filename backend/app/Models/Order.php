@@ -26,7 +26,6 @@ class Order extends Model
         'order_status',
         'payment_method',
         'payment_status',
-        'payjp_charge_id',
         'note',
         'ordered_at',
     ];

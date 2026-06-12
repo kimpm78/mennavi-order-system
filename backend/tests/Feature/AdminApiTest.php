@@ -69,6 +69,38 @@ class AdminApiTest extends TestCase
             'payment_status' => 'paid',
             'ordered_at' => now()->subDay(),
         ]);
+        Order::create([
+            'order_number' => 'MN-ADMIN-0002',
+            'user_id' => $admin->id,
+            'customer_name' => '管理 花子',
+            'customer_email' => 'admin2@example.com',
+            'receipt_type' => 'delivery',
+            'subtotal_amount' => 2000,
+            'delivery_fee' => 350,
+            'tax_rate' => 8,
+            'tax_amount' => 188,
+            'total_amount' => 2538,
+            'order_status' => 'completed',
+            'payment_method' => 'card',
+            'payment_status' => 'partial_refunded',
+            'ordered_at' => now()->subMinutes(5),
+        ]);
+        Order::create([
+            'order_number' => 'MN-ADMIN-0003',
+            'user_id' => $admin->id,
+            'customer_name' => '管理 次郎',
+            'customer_email' => 'admin3@example.com',
+            'receipt_type' => 'delivery',
+            'subtotal_amount' => 1000,
+            'delivery_fee' => 350,
+            'tax_rate' => 8,
+            'tax_amount' => 108,
+            'total_amount' => 1458,
+            'order_status' => 'cooking',
+            'payment_method' => 'card',
+            'payment_status' => 'pending',
+            'ordered_at' => now()->subMinutes(15),
+        ]);
         OrderItem::create([
             'order_id' => $order->id,
             'product_id' => $product->id,
@@ -81,11 +113,36 @@ class AdminApiTest extends TestCase
         $this->withToken($plainToken)
             ->getJson('/api/admin/dashboard')
             ->assertOk()
-            ->assertJsonPath('summary.today_orders', 1)
+            ->assertJsonPath('summary.today_orders', 3)
             ->assertJsonPath('summary.today_sales', 1458)
-            ->assertJsonPath('summary.today_orders_change_rate', 0)
+            ->assertJsonPath('summary.today_orders_change_rate', 200)
             ->assertJsonPath('summary.today_sales_change_rate', 85)
-            ->assertJsonPath('orders.0.order_number', 'MN-ADMIN-0001');
+            ->assertJsonPath('summary.average_cooking_minutes', 15)
+            ->assertJsonPath('summary.kitchen_load', 10)
+            ->assertJsonPath('orders.0.order_number', 'MN-ADMIN-0001')
+            ->assertJsonPath('orders.0.payment_status', 'paid')
+            ->assertJsonMissing(['delivery_networks' => []]);
+
+        $this->withToken($plainToken)
+            ->getJson('/api/admin/orders')
+            ->assertOk()
+            ->assertJsonFragment([
+                'order_number' => 'MN-ADMIN-0002',
+                'payment_status' => 'partial_refunded',
+            ]);
+
+        $this->withToken($plainToken)
+            ->patchJson("/api/admin/orders/{$order->id}/status", [
+                'order_status' => 'cooking',
+            ])
+            ->assertOk()
+            ->assertJsonPath('order.order_number', 'MN-ADMIN-0001')
+            ->assertJsonPath('order.status', 'cooking');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'order_status' => 'cooking',
+        ]);
 
         $this->withToken($plainToken)
             ->getJson('/api/admin/products')

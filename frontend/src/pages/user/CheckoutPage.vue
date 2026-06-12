@@ -54,6 +54,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   back: []
   completed: []
+  openDeliveryInfo: []
   updateQuantity: [payload: { item: CartItem; amount: number }]
   removeItem: [item: CartItem]
 }>()
@@ -69,6 +70,7 @@ const selectedPaymentMethodId = ref<number | null>(null)
 const oneTimePayjpToken = ref<string | null>(null)
 let payjpInstance: PayjpInstance | null = null
 let payjpCardElement: PayjpElement | null = null
+let payjpScriptPromise: Promise<void> | null = null
 
 const deliveryFeeBase = 350
 const taxRate = 8
@@ -79,13 +81,17 @@ const totalAmount = computed(() => props.cartTotal + deliveryFee.value + taxAmou
 const totalQuantity = computed(() =>
   props.cartItems.reduce((total, item) => total + item.quantity, 0),
 )
-const deliveryAddress = computed(() => {
-  if (!props.user.address) {
-    return '配送先情報から住所を登録してください。'
+const deliveryPostalCode = computed(() => {
+  if (!props.user.postal_code) {
+    return ''
   }
 
-  return `${props.user.address}${props.user.postal_code ? ` / ${props.user.postal_code}` : ''}`
+  return props.user.postal_code.startsWith('〒')
+    ? props.user.postal_code
+    : `〒 ${props.user.postal_code}`
 })
+const deliveryAddress = computed(() => props.user.address ?? '配送先情報から住所を登録してください。')
+const hasDeliveryAddress = computed(() => Boolean(props.user.address))
 const selectedPaymentMethod = computed(() =>
   paymentMethods.value.find((method) => method.id === selectedPaymentMethodId.value) ?? null,
 )
@@ -141,7 +147,7 @@ async function openPaymentForm() {
   saveAsDefault.value = true
   paymentError.value = ''
   await nextTick()
-  mountPayjpCard()
+  await mountPayjpCard()
 }
 
 function closePaymentModal() {
@@ -149,15 +155,27 @@ function closePaymentModal() {
   unmountPayjpCard()
 }
 
-function mountPayjpCard() {
+async function mountPayjpCard() {
   if (payjpCardElement) {
-    return
+    return true
   }
 
   const publicKey = import.meta.env.VITE_PAYJP_PUBLIC_KEY
-  if (!publicKey || !window.Payjp) {
-    paymentError.value = 'PAY.JPの公開鍵またはpayjp.jsが設定されていません。'
-    return
+  if (!publicKey) {
+    paymentError.value = 'PAY.JPの公開鍵が設定されていません。'
+    return false
+  }
+
+  try {
+    await loadPayjpScript()
+  } catch {
+    paymentError.value = 'PAY.JPの決済フォームを読み込めませんでした。ネットワーク接続を確認してください。'
+    return false
+  }
+
+  if (!window.Payjp) {
+    paymentError.value = 'PAY.JPの決済フォームを初期化できませんでした。'
+    return false
   }
 
   payjpInstance = window.Payjp(publicKey, { locale: 'ja' })
@@ -170,6 +188,36 @@ function mountPayjpCard() {
     },
   })
   payjpCardElement.mount('#checkout-payjp-modal-card')
+  return true
+}
+
+function loadPayjpScript() {
+  if (window.Payjp) {
+    return Promise.resolve()
+  }
+
+  if (payjpScriptPromise) {
+    return payjpScriptPromise
+  }
+
+  payjpScriptPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://js.pay.jp/v2/pay.js"]')
+
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true })
+      existingScript.addEventListener('error', () => reject(new Error('payjp.js load failed')), { once: true })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://js.pay.jp/v2/pay.js'
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('payjp.js load failed'))
+    document.head.appendChild(script)
+  })
+
+  return payjpScriptPromise
 }
 
 async function loadPaymentMethods() {
@@ -196,8 +244,21 @@ async function loadPaymentMethods() {
 
 async function setupCardPayment() {
   const token = getCustomerToken()
-  if (!token || !payjpInstance || !payjpCardElement) {
-    paymentError.value = '決済フォームを読み込めませんでした。'
+  if (!token) {
+    paymentError.value = 'ログイン状態を確認できませんでした。再ログインしてください。'
+    return
+  }
+
+  if (!payjpInstance || !payjpCardElement) {
+    await nextTick()
+    const mounted = await mountPayjpCard()
+    if (!mounted || !payjpInstance || !payjpCardElement) {
+      return
+    }
+  }
+
+  if (!payjpInstance || !payjpCardElement) {
+    paymentError.value = '決済フォームを初期化できませんでした。'
     return
   }
 
@@ -207,7 +268,7 @@ async function setupCardPayment() {
   try {
     const tokenResponse = await payjpInstance.createToken(payjpCardElement)
     if (tokenResponse.error || !tokenResponse.id) {
-      throw new Error(tokenResponse.error?.message ?? 'カード情報を確認してください。')
+      throw new Error(normalizePayjpError(tokenResponse.error?.message))
     }
 
     if (saveAsDefault.value) {
@@ -239,6 +300,18 @@ async function setupCardPayment() {
   } finally {
     paymentLoading.value = false
   }
+}
+
+function normalizePayjpError(message?: string) {
+  if (!message) {
+    return 'カード情報を確認してください。'
+  }
+
+  if (message.includes('入力') || message.toLowerCase().includes('invalid')) {
+    return 'カード情報の入力形式が正しくありません。テストカード番号・有効期限・CVCを確認してください。'
+  }
+
+  return message
 }
 
 async function handlePrimaryPaymentAction() {
@@ -407,12 +480,12 @@ function formatPaymentMethod(method: PaymentMethod) {
       </section>
 
       <aside class="grid content-start gap-4">
-        <section class="rounded-lg border border-red-200 bg-white p-5">
-          <h2 class="text-2xl font-black tracking-normal">お支払い方法</h2>
-          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+        <section class="rounded-lg border border-red-200 bg-white p-4">
+          <h2 class="text-xl font-black tracking-normal">お支払い方法</h2>
+          <div class="mt-4 grid gap-2 sm:grid-cols-2">
             <button
               :class="[
-                'grid min-h-20 place-items-center rounded-lg border px-3 text-sm font-black',
+                'grid min-h-16 place-items-center rounded-lg border px-3 py-3 text-sm font-black leading-none',
                 paymentMethod === 'card'
                   ? 'border-red-700 text-neutral-900 ring-1 ring-red-700'
                   : 'border-red-200 text-neutral-700',
@@ -420,12 +493,12 @@ function formatPaymentMethod(method: PaymentMethod) {
               type="button"
               @click="selectPaymentMethod('card')"
             >
-              <CreditCard class="mb-1 h-6 w-6 text-red-700" />
+              <CreditCard class="mb-1 h-5 w-5 text-red-700" />
               クレジットカード
             </button>
             <button
               :class="[
-                'grid min-h-20 place-items-center rounded-lg border px-3 text-sm font-black',
+                'grid min-h-16 place-items-center rounded-lg border px-3 py-3 text-sm font-black leading-none',
                 paymentMethod === 'paypay'
                   ? 'border-red-700 text-neutral-900 ring-1 ring-red-700'
                   : 'border-red-200 text-neutral-700',
@@ -435,7 +508,7 @@ function formatPaymentMethod(method: PaymentMethod) {
             >
               <WalletCards
                 :class="[
-                  'mb-1 h-6 w-6',
+                  'mb-1 h-5 w-5',
                   paymentMethod === 'paypay' ? 'text-red-700' : 'text-neutral-500',
                 ]"
               />
@@ -443,7 +516,7 @@ function formatPaymentMethod(method: PaymentMethod) {
             </button>
             <button
               :class="[
-                'grid min-h-20 place-items-center rounded-lg border px-3 text-sm font-black',
+                'grid min-h-16 place-items-center rounded-lg border px-3 py-3 text-sm font-black leading-none',
                 paymentMethod === 'cash'
                   ? 'border-red-700 text-neutral-900 ring-1 ring-red-700'
                   : 'border-red-200 text-neutral-700',
@@ -453,7 +526,7 @@ function formatPaymentMethod(method: PaymentMethod) {
             >
               <Banknote
                 :class="[
-                  'mb-1 h-6 w-6',
+                  'mb-1 h-5 w-5',
                   paymentMethod === 'cash' ? 'text-red-700' : 'text-neutral-500',
                 ]"
               />
@@ -461,10 +534,10 @@ function formatPaymentMethod(method: PaymentMethod) {
             </button>
           </div>
 
-          <div v-if="paymentMethod === 'card'" class="mt-5">
+          <div v-if="paymentMethod === 'card'" class="mt-4">
             <div
               v-if="selectedPaymentMethod"
-              class="rounded-lg border border-red-100 bg-red-50 px-4 py-3"
+              class="rounded-lg border border-red-100 bg-red-50 px-3 py-2.5"
             >
               <div class="flex items-start gap-3">
                 <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0 text-red-700" />
@@ -478,14 +551,14 @@ function formatPaymentMethod(method: PaymentMethod) {
             </div>
             <div
               v-else-if="oneTimePayjpToken"
-              class="rounded-lg border border-red-100 bg-red-50 px-4 py-3"
+              class="rounded-lg border border-red-100 bg-red-50 px-3 py-2.5"
             >
               <p class="text-sm font-black text-neutral-900">今回入力したカードを使用します</p>
               <p class="mt-1 text-xs font-bold text-neutral-500">
                 注文確定時にPAY.JPで決済します。
               </p>
             </div>
-            <p v-else class="rounded-lg bg-neutral-50 px-4 py-3 text-sm font-bold text-neutral-500">
+            <p v-else class="rounded-lg bg-neutral-50 px-3 py-2.5 text-sm font-bold text-neutral-500">
               登録済みカードがありません。決済画面でカード情報を入力してください。
             </p>
           </div>
@@ -522,7 +595,19 @@ function formatPaymentMethod(method: PaymentMethod) {
               <MapPin class="mt-0.5 h-5 w-5 shrink-0 text-neutral-500" />
               <div>
                 <p class="font-black">お届け先</p>
-                <p class="mt-1 leading-6">{{ deliveryAddress }}</p>
+                <div v-if="hasDeliveryAddress" class="mt-1 leading-6">
+                  <p v-if="deliveryPostalCode">{{ deliveryPostalCode }}</p>
+                  <p>{{ deliveryAddress }}</p>
+                </div>
+                <p v-else class="mt-1 leading-6">{{ deliveryAddress }}</p>
+                <button
+                  v-if="!hasDeliveryAddress"
+                  class="mt-3 inline-flex items-center rounded-full bg-white px-4 py-2 text-xs font-black text-red-700 shadow-sm ring-1 ring-red-100 hover:bg-red-700 hover:text-white"
+                  type="button"
+                  @click="emit('openDeliveryInfo')"
+                >
+                  登録する
+                </button>
               </div>
             </div>
           </div>
@@ -573,6 +658,9 @@ function formatPaymentMethod(method: PaymentMethod) {
         <p class="mt-2 text-sm font-bold leading-6 text-neutral-500">
           PAY.JPの安全な入力フォームでカード情報を設定します。
         </p>
+        <p class="mt-2 text-xs font-bold leading-5 text-red-700">
+          テスト決済は 4242 4242 4242 4242、有効期限は未来の月/年、CVCは3桁で入力してください。
+        </p>
       </div>
       <button
         class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-neutral-500 hover:bg-neutral-100"
@@ -592,6 +680,9 @@ function formatPaymentMethod(method: PaymentMethod) {
         id="checkout-payjp-modal-card"
         class="mt-2 min-h-12 rounded-lg border border-neutral-200 px-4 py-3"
       />
+      <p class="mt-2 text-xs font-bold leading-5 text-neutral-500">
+        例: カード番号 4242 4242 4242 4242 / 有効期限 12/30 / CVC 123
+      </p>
     </div>
 
     <label class="mt-5 flex cursor-pointer items-start gap-3 rounded-lg bg-neutral-50 p-4">

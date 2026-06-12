@@ -26,7 +26,7 @@ class OrderController extends Controller
             return response()->json(['message' => '認証が必要です。'], 401);
         }
 
-        $orders = Order::with('items')
+        $orders = Order::with('items.product')
             ->where('user_id', $user->id)
             ->latest('ordered_at')
             ->get()
@@ -40,11 +40,14 @@ class OrderController extends Controller
                 'tax_amount' => $order->tax_amount,
                 'receipt_type' => $order->receipt_type,
                 'order_status' => $order->order_status,
+                'payment_status' => $order->payment_status,
                 'payment_method' => $order->payment_method,
                 'ordered_at' => $order->ordered_at?->toISOString(),
                 'items' => $order->items->map(fn ($item) => [
                     'id' => $item->id,
+                    'product_id' => $item->product_id,
                     'product_name' => $item->product_name,
+                    'imagePath' => $item->product?->image_path,
                     'unit_price' => $item->unit_price,
                     'quantity' => $item->quantity,
                     'subtotal' => $item->subtotal,
@@ -104,7 +107,9 @@ class OrderController extends Controller
             ? $this->createPayjpChargeFromPaymentMethod($paymentMethod, $pricing['total_amount'])
             : $this->createPayjpCharge($validated['payjp_token'], $pricing['total_amount']);
 
-        $order = DB::transaction(function () use ($user, $cart, $pricing, $validated, $charge): Order {
+        $cardSnapshot = $this->cardSnapshot($charge, $paymentMethod);
+
+        $order = DB::transaction(function () use ($user, $cart, $pricing, $validated, $charge, $cardSnapshot, $paymentMethod): Order {
             $order = Order::create([
                 'order_number' => $this->generateOrderNumber(),
                 'user_id' => $user->id,
@@ -120,7 +125,6 @@ class OrderController extends Controller
                 'order_status' => 'received',
                 'payment_method' => $validated['payment_method'] ?? 'card',
                 'payment_status' => 'paid',
-                'payjp_charge_id' => $charge['id'] ?? null,
                 'note' => $validated['note'] ?? null,
                 'ordered_at' => now(),
             ]);
@@ -139,12 +143,16 @@ class OrderController extends Controller
 
             $order->payments()->create([
                 'user_id' => $user->id,
+                'user_payment_method_id' => $paymentMethod?->id,
                 'provider' => 'payjp',
+                'provider_customer_id' => $paymentMethod?->provider_customer_id,
+                'provider_card_id' => $paymentMethod?->provider_card_id ?? ($charge['card']['id'] ?? null),
                 'provider_charge_id' => $charge['id'] ?? null,
                 'payment_method' => $validated['payment_method'] ?? 'card',
                 'payment_status' => 'paid',
                 'amount' => $pricing['total_amount'],
                 'currency' => $charge['currency'] ?? 'jpy',
+                ...$cardSnapshot,
                 'provider_response' => $charge,
                 'paid_at' => now(),
             ]);
@@ -170,8 +178,9 @@ class OrderController extends Controller
         $chargeId = is_array($charge) ? ($charge['id'] ?? null) : null;
 
         if ($chargeId && $event === 'charge.refunded') {
-            Order::where('payjp_charge_id', $chargeId)->update(['payment_status' => 'refunded']);
-            Payment::where('provider_charge_id', $chargeId)->update([
+            $payment = Payment::where('provider_charge_id', $chargeId)->first();
+            $payment?->order()->update(['payment_status' => 'refunded']);
+            $payment?->update([
                 'payment_status' => 'refunded',
                 'refunded_at' => now(),
             ]);
@@ -245,6 +254,21 @@ class OrderController extends Controller
     }
 
     /**
+     * @return array{card_brand: mixed, card_last4: mixed, card_exp_month: mixed, card_exp_year: mixed}
+     */
+    private function cardSnapshot(array $charge, ?UserPaymentMethod $paymentMethod): array
+    {
+        $card = is_array($charge['card'] ?? null) ? $charge['card'] : [];
+
+        return [
+            'card_brand' => $card['brand'] ?? $paymentMethod?->brand,
+            'card_last4' => $card['last4'] ?? $paymentMethod?->last4,
+            'card_exp_month' => $card['exp_month'] ?? $paymentMethod?->exp_month,
+            'card_exp_year' => $card['exp_year'] ?? $paymentMethod?->exp_year,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function createPayjpChargeFromPaymentMethod(UserPaymentMethod $paymentMethod, int $amount): array
@@ -306,7 +330,9 @@ class OrderController extends Controller
             'ordered_at' => $order->ordered_at?->toISOString(),
             'items' => $order->items->map(fn ($item) => [
                 'id' => $item->id,
+                'product_id' => $item->product_id,
                 'product_name' => $item->product_name,
+                'imagePath' => $item->product?->image_path,
                 'unit_price' => $item->unit_price,
                 'quantity' => $item->quantity,
                 'subtotal' => $item->subtotal,
