@@ -15,6 +15,8 @@ const props = defineProps<{
     reviews?: string
     imagePath?: string | null
     imageClass: string
+    address?: string | null
+    products?: MenuItem[]
   }
   cartCount: number
 }>()
@@ -29,57 +31,19 @@ const emit = defineEmits<{
 
 const searchQuery = ref('')
 const activeCategory = ref('すべて')
-const categories = ['すべて', 'メイン', 'トッピング', 'サイド', 'ドリンク & お酒']
 
-const menuItems = [
-  {
-    id: 1,
-    name: '特製濃厚醤油ラーメン',
-    category: 'メイン',
-    price: 1280,
-    badge: 'Best Seller',
-    imagePath: null,
-    imageClass: 'ramen-photo ramen-photo-bowl',
-    description:
-      '当店自慢のスープは、鶏と魚介を12時間じっくり煮込んで仕上げたものです。最後に、地元の熟成醤油をブレンドし、深みのある味わいに仕上げています。',
-    toppings: ['追加チャーシュー（+250円）', '味玉追加（+150円）'],
-  },
-  {
-    id: 2,
-    name: '昔ながらの淡麗醤油ラーメン',
-    category: 'メイン',
-    price: 980,
-    imagePath: null,
-    imageClass: 'ramen-photo ramen-photo-clear',
-    description:
-      'あっさりとした伝統的な一杯。澄んだ鶏清湯スープに、魚介だしの風味をほんのり加え、すっきりしながらも旨みのある味わいに仕上げました。',
-    toppings: ['メンマ（100円）', '海苔（100円）'],
-  },
-  {
-    id: 3,
-    name: '生姜香る旨辛ラーメン',
-    category: 'メイン',
-    price: 1100,
-    imagePath: null,
-    imageClass: 'ramen-photo ramen-photo-spicy',
-    description:
-      '体が温まる、刺激的な一杯。澄んだ醤油スープに生姜エキスを加え、自家製ラー油でピリッとした辛さに仕上げました。',
-    toppings: ['辛さレベル2（+50円）', 'パクチー追加（+150円）'],
-  },
-  {
-    id: 4,
-    name: '特製濃厚つけ麺',
-    category: 'メイン',
-    price: 1350,
-    imagePath: null,
-    imageClass: 'ramen-photo ramen-photo-noodle',
-    description:
-      '太くもちもちとした麺を冷たい状態で提供し、熱々の濃厚つけ汁につけてお召し上がりいただきます。旨みが凝縮された、食べ応えのある一杯です。',
-    toppings: ['麺大盛り（+150円）', 'つけ汁追加（+200円）'],
-  },
-]
-
-type MenuItem = (typeof menuItems)[number]
+type MenuItem = {
+  id: number
+  name: string
+  category: string
+  price: number
+  status?: string
+  badge?: string
+  imagePath?: string | null
+  imageClass?: string
+  description?: string | null
+  toppings?: string[]
+}
 
 type CartItem = {
   storeName: string
@@ -90,32 +54,67 @@ type CartItem = {
 }
 
 const quantities = reactive<Record<number, number>>(
-  Object.fromEntries(menuItems.map((item) => [item.id, 1])),
+  Object.fromEntries((props.store.products ?? []).map((item) => [item.id, 1])),
 )
+
+const menuItems = computed(() => props.store.products ?? [])
+const categories = computed(() => [
+  'すべて',
+  ...Array.from(new Set(menuItems.value.map((item) => item.category))),
+])
 
 const filteredMenuItems = computed(() => {
   if (activeCategory.value === 'すべて') {
-    return menuItems
+    return menuItems.value
   }
 
-  return menuItems.filter((item) => item.category === activeCategory.value)
+  return menuItems.value.filter((item) => item.category === activeCategory.value)
 })
 
 function updateQuantity(itemId: number, amount: number) {
+  if (!quantities[itemId]) {
+    quantities[itemId] = 1
+  }
   quantities[itemId] = Math.max(1, quantities[itemId] + amount)
+}
+
+function isSoldOut(item: MenuItem) {
+  return item.status === 'sold_out'
 }
 
 function formatPrice(price: number) {
   return `${price.toLocaleString('ja-JP')}円`
 }
 
+function googleMapEmbedUrl(address?: string | null) {
+  if (!address) {
+    return ''
+  }
+
+  return `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`
+}
+
+function googleMapOpenUrl(address?: string | null) {
+  if (!address) {
+    return 'https://www.google.com/maps'
+  }
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+}
+
 function addToCart(item: MenuItem) {
+  if (isSoldOut(item)) {
+    return
+  }
+
+  const quantity = quantities[item.id] ?? 1
+
   emit('addCart', {
     storeName: props.store.name,
     menuItemId: item.id,
     name: item.name,
     price: item.price,
-    quantity: quantities[item.id],
+    quantity,
   })
 
   quantities[item.id] = 1
@@ -185,16 +184,32 @@ function addToCart(item: MenuItem) {
                 <p class="font-bold text-neutral-500">所在地</p>
                 <p class="mt-2 flex items-center gap-2 font-bold">
                   <MapPin class="h-4 w-4 text-red-700" />
-                  1-2-3 神南, 渋谷区, 東京都
+                  {{ store.address ?? '所在地未設定' }}
                 </p>
                 <div class="store-map mt-3">
-                  <button
+                  <iframe
+                    v-if="store.address"
+                    class="h-full w-full"
+                    :src="googleMapEmbedUrl(store.address)"
+                    :title="`${store.name}の地図`"
+                    loading="lazy"
+                    referrerpolicy="no-referrer-when-downgrade"
+                  />
+                  <div
+                    v-else
+                    class="grid h-full place-items-center px-4 text-center text-xs font-black text-neutral-500"
+                  >
+                    所在地を登録するとGoogle Mapが表示されます。
+                  </div>
+                  <a
                     class="absolute bottom-3 right-3 z-[2] inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-xs font-black text-neutral-800 shadow-sm"
-                    type="button"
+                    :href="googleMapOpenUrl(store.address)"
+                    target="_blank"
+                    rel="noreferrer"
                   >
                     <ExternalLink class="h-3.5 w-3.5" />
                     地図を開く
-                  </button>
+                  </a>
                 </div>
               </div>
             </div>
@@ -258,7 +273,7 @@ function addToCart(item: MenuItem) {
                   <p class="text-xs font-black text-neutral-500">人気トッピング</p>
                   <div class="mt-2 flex flex-wrap gap-2">
                     <span
-                      v-for="topping in item.toppings"
+                    v-for="topping in item.toppings"
                       :key="topping"
                       class="rounded bg-neutral-200 px-3 py-1 text-xs font-bold text-neutral-600"
                     >
@@ -268,10 +283,16 @@ function addToCart(item: MenuItem) {
                 </div>
 
                 <div class="mt-6 flex items-center justify-between gap-4">
-                  <div class="inline-flex items-center rounded-full bg-neutral-100 px-3 py-2">
+                  <div
+                    :class="[
+                      'inline-flex items-center rounded-full px-3 py-2',
+                      isSoldOut(item) ? 'bg-neutral-200 opacity-60' : 'bg-neutral-100',
+                    ]"
+                  >
                     <button
                       class="grid h-7 w-7 place-items-center rounded-full font-black text-neutral-700 hover:bg-white"
                       type="button"
+                      :disabled="isSoldOut(item)"
                       @click="updateQuantity(item.id, -1)"
                     >
                       -
@@ -280,6 +301,7 @@ function addToCart(item: MenuItem) {
                     <button
                       class="grid h-7 w-7 place-items-center rounded-full font-black text-red-700 hover:bg-white"
                       type="button"
+                      :disabled="isSoldOut(item)"
                       @click="updateQuantity(item.id, 1)"
                     >
                       +
@@ -287,12 +309,18 @@ function addToCart(item: MenuItem) {
                   </div>
 
                   <button
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-red-700 px-6 text-sm font-black text-white hover:bg-red-800"
+                    :class="[
+                      'inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-6 text-sm font-black text-white',
+                      isSoldOut(item)
+                        ? 'cursor-not-allowed bg-neutral-400'
+                        : 'bg-red-700 hover:bg-red-800',
+                    ]"
                     type="button"
+                    :disabled="isSoldOut(item)"
                     @click="addToCart(item)"
                   >
                     <ShoppingBag class="h-4 w-4" />
-                    カートに追加
+                    {{ isSoldOut(item) ? '売り切れ' : 'カートに追加' }}
                   </button>
                 </div>
               </div>

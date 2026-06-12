@@ -39,6 +39,7 @@ class OrderApiTest extends TestCase
             'category_id' => $category->id,
             'name' => '特製濃厚醤油ラーメン',
             'price' => 1280,
+            'image_path' => '/images/products/special-ramen.png',
             'status' => 'active',
             'display_order' => 1,
         ]);
@@ -51,6 +52,7 @@ class OrderApiTest extends TestCase
             'total_amount' => 2560,
             'order_status' => 'received',
             'payment_method' => 'cash',
+            'payment_status' => 'paid',
             'ordered_at' => now(),
         ]);
         OrderItem::create([
@@ -66,7 +68,9 @@ class OrderApiTest extends TestCase
             ->getJson('/api/orders')
             ->assertOk()
             ->assertJsonPath('orders.0.order_number', 'MN-20260608-0001')
-            ->assertJsonPath('orders.0.items.0.product_name', '特製濃厚醤油ラーメン');
+            ->assertJsonPath('orders.0.payment_status', 'paid')
+            ->assertJsonPath('orders.0.items.0.product_name', '特製濃厚醤油ラーメン')
+            ->assertJsonPath('orders.0.items.0.imagePath', '/images/products/special-ramen.png');
     }
 
     public function test_user_can_create_order_with_payjp_token(): void
@@ -78,6 +82,12 @@ class OrderApiTest extends TestCase
                 'amount' => 2764,
                 'currency' => 'jpy',
                 'paid' => true,
+                'card' => [
+                    'brand' => 'Visa',
+                    'last4' => '4242',
+                    'exp_month' => 12,
+                    'exp_year' => 2030,
+                ],
             ]),
         ]);
 
@@ -127,7 +137,6 @@ class OrderApiTest extends TestCase
         $this->assertDatabaseHas('orders', [
             'user_id' => $user->id,
             'total_amount' => 2764,
-            'payjp_charge_id' => 'ch_test_123',
         ]);
         $this->assertDatabaseHas('payments', [
             'user_id' => $user->id,
@@ -137,6 +146,10 @@ class OrderApiTest extends TestCase
             'payment_status' => 'paid',
             'amount' => 2764,
             'currency' => 'jpy',
+            'card_brand' => 'Visa',
+            'card_last4' => '4242',
+            'card_exp_month' => 12,
+            'card_exp_year' => 2030,
         ]);
         $this->assertDatabaseMissing('carts', ['id' => $cart->id]);
     }
@@ -221,7 +234,14 @@ class OrderApiTest extends TestCase
 
         $this->assertDatabaseHas('orders', [
             'user_id' => $user->id,
-            'payjp_charge_id' => 'ch_saved_123',
+        ]);
+        $this->assertDatabaseHas('payments', [
+            'user_id' => $user->id,
+            'provider_charge_id' => 'ch_saved_123',
+            'card_brand' => 'Visa',
+            'card_last4' => '4242',
+            'card_exp_month' => 12,
+            'card_exp_year' => 2030,
         ]);
         $this->assertDatabaseMissing('carts', ['id' => $cart->id]);
     }

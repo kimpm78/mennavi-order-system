@@ -9,6 +9,7 @@ import { getCustomerToken } from '../../lib/authStorage'
 import type { User } from '../../types/auth'
 import CheckoutPage from './CheckoutPage.vue'
 import DeliveryInfoPage from './DeliveryInfoPage.vue'
+import OrderCompletePage from './OrderCompletePage.vue'
 import OrderHistoryPage from './OrderHistoryPage.vue'
 import StoreDetailPage from './StoreDetailPage.vue'
 
@@ -22,11 +23,10 @@ const emit = defineEmits<{
   updateUser: [user: User]
 }>()
 
-const categories = ['すべて', '醤油', '味噌', '豚骨', '塩', '担々麺', 'つけ麺', '油そば']
 const activeCategory = ref('すべて')
 const searchQuery = ref('')
 const selectedStore = ref<StoreSummary | null>(null)
-const currentView = ref<'home' | 'delivery' | 'orderHistory' | 'checkout'>('home')
+const currentView = ref<'home' | 'delivery' | 'orderHistory' | 'checkout' | 'orderComplete'>('home')
 const accountInitialSection = ref<'profile' | 'orders' | 'delivery'>('delivery')
 const cartItems = ref<CartItem[]>([])
 const cartExpiresAt = ref<string | null>(null)
@@ -40,6 +40,7 @@ let cartClockTimer: number | undefined
 let toastTimer: number | undefined
 
 type StoreSummary = {
+  id: number
   name: string
   categories?: string[]
   tags?: string[]
@@ -49,6 +50,19 @@ type StoreSummary = {
   reviews?: string
   imagePath?: string | null
   imageClass: string
+  products?: MenuItem[]
+}
+
+type MenuItem = {
+  id: number
+  name: string
+  category: string
+  price: number
+  status?: string
+  description?: string | null
+  imagePath?: string | null
+  imageClass?: string
+  toppings?: string[]
 }
 
 type CartItem = {
@@ -66,49 +80,23 @@ type CartResponse = {
   total: number
 }
 
-const recommendedStores: StoreSummary[] = [
-  {
-    name: '麺処 極 -KIWAMI-',
-    categories: ['豚骨'],
-    tags: ['豚骨', '新宿駅から徒歩5分'],
-    description: '24時間炊き出した濃厚な豚骨スープと、特製極細麺が織りなす究極の一杯をご堪能ください。',
-    budget: '予算: ¥1,000〜¥2,000',
-    rating: '4.8',
-    imageClass: 'ramen-photo ramen-photo-shop',
-  },
-  {
-    name: '醤油の匠 蔵',
-    categories: ['醤油'],
-    tags: ['醤油', '渋谷駅から徒歩3分'],
-    description: '全国から厳選した3種類の醤油をブレンドした、香り高く奥深い琥珀色のスープが自慢の一杯です。',
-    budget: '予算: ¥800〜¥1,500',
-    rating: '4.6',
-    imageClass: 'ramen-photo ramen-photo-bowl',
-  },
-  {
-    name: '札幌 炎麺',
-    categories: ['味噌'],
-    tags: ['味噌', '池袋駅から徒歩2分'],
-    description: '中華鍋で一気に焼き上げる味噌の香ばしさと、バターのコクが溶け合う本場札幌の味を再現。',
-    budget: '予算: ¥1,200〜¥2,500',
-    rating: '4.9',
-    imageClass: 'ramen-photo ramen-photo-miso',
-  },
-]
-
-const nearbyStores: StoreSummary[] = [
-  { name: '銀座 篝 (KAGARI)', categories: ['塩'], tags: ['塩'], rating: '4.7', reviews: '1,240', imageClass: 'ramen-photo ramen-photo-noodle' },
-  { name: '阿夫利 (AFURI)', categories: ['担々麺'], tags: ['担々麺'], rating: '4.5', reviews: '980', imageClass: 'ramen-photo ramen-photo-spicy' },
-  { name: '六厘舎', categories: ['つけ麺'], tags: ['つけ麺'], rating: '4.6', reviews: '2,150', imageClass: 'ramen-photo ramen-photo-clear' },
-  { name: '一蘭', categories: ['油そば'], tags: ['油そば'], rating: '4.4', reviews: '3,400', imageClass: 'ramen-photo ramen-photo-night' },
+const stores = ref<StoreSummary[]>([])
+const categories = [
+  'すべて',
+  '人気店',
+  '高評価',
+  '醤油が人気',
+  '味噌が人気',
+  '豚骨が人気',
+  'つけ麺が人気',
 ]
 
 const normalizedSearchQuery = computed(() => searchQuery.value.trim().toLowerCase())
 const filteredRecommendedStores = computed(() =>
-  recommendedStores.filter((store) => matchesCategory(store) && matchesSearch(store, normalizedSearchQuery.value)),
+  stores.value.filter((store) => matchesCategory(store) && matchesSearch(store, normalizedSearchQuery.value)),
 )
 const filteredNearbyStores = computed(() =>
-  nearbyStores.filter((store) => matchesCategory(store) && matchesSearch(store, normalizedSearchQuery.value)),
+  stores.value.filter((store) => matchesCategory(store) && matchesSearch(store, normalizedSearchQuery.value)),
 )
 const totalSearchResults = computed(
   () => filteredRecommendedStores.value.length + filteredNearbyStores.value.length,
@@ -145,6 +133,7 @@ onMounted(() => {
     currentTime.value = Date.now()
   }, 1000)
   loadCart()
+  loadStores()
 })
 
 onBeforeUnmount(() => {
@@ -169,6 +158,10 @@ function matchesSearch(
 
   return [store.name, store.description, ...(store.tags ?? [])].some((value) =>
     value?.toLowerCase().includes(keyword),
+  ) || (store.products ?? []).some((product) =>
+    [product.name, product.category, product.description].some((value) =>
+      value?.toLowerCase().includes(keyword),
+    ),
   )
 }
 
@@ -177,7 +170,47 @@ function matchesCategory(store: StoreSummary) {
     return true
   }
 
-  return [...(store.categories ?? []), ...(store.tags ?? [])].includes(activeCategory.value)
+  if (activeCategory.value === '人気店') {
+    return getReviewCount(store) >= 1000 || getStoreSearchText(store).includes('人気')
+  }
+
+  if (activeCategory.value === '高評価') {
+    return Number.parseFloat(store.rating) >= 4.7 || getStoreSearchText(store).includes('高評価')
+  }
+
+  const categoryKeyword = activeCategory.value.replace('が人気', '')
+
+  return getStoreSearchText(store).includes(categoryKeyword.toLowerCase())
+}
+
+function getReviewCount(store: StoreSummary) {
+  return Number.parseInt((store.reviews ?? '0').replace(/,/g, ''), 10) || 0
+}
+
+function getStoreSearchText(store: StoreSummary) {
+  return [
+    store.name,
+    store.description,
+    ...(store.categories ?? []),
+    ...(store.tags ?? []),
+    ...(store.products ?? []).flatMap((product) => [
+      product.name,
+      product.category,
+      product.description,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+async function loadStores() {
+  try {
+    const response = await apiRequest<{ stores: StoreSummary[] }>('/stores')
+    stores.value = response.stores
+  } catch {
+    stores.value = []
+  }
 }
 
 function selectCategory(category: string) {
@@ -229,6 +262,13 @@ function openOrderHistory() {
   selectedStore.value = null
   isCartOpen.value = false
   currentView.value = 'orderHistory'
+  window.scrollTo({ top: 0 })
+}
+
+function openTop() {
+  selectedStore.value = null
+  isCartOpen.value = false
+  currentView.value = 'home'
   window.scrollTo({ top: 0 })
 }
 
@@ -335,11 +375,18 @@ function openCheckout() {
   window.scrollTo({ top: 0 })
 }
 
+function openDeliveryInfoFromCheckout() {
+  selectedStore.value = null
+  isCartOpen.value = false
+  accountInitialSection.value = 'delivery'
+  currentView.value = 'delivery'
+  window.scrollTo({ top: 0 })
+}
+
 function completeOrder() {
   cartItems.value = []
   cartExpiresAt.value = null
-  currentView.value = 'orderHistory'
-  showCartToast('注文が完了しました')
+  currentView.value = 'orderComplete'
   window.scrollTo({ top: 0 })
 }
 
@@ -470,6 +517,12 @@ function showCartToast(message: string) {
 
     <OrderHistoryPage v-else-if="currentView === 'orderHistory'" />
 
+    <OrderCompletePage
+      v-else-if="currentView === 'orderComplete'"
+      @top="openTop"
+      @order-history="openOrderHistory"
+    />
+
     <CheckoutPage
       v-else-if="currentView === 'checkout'"
       :cart-items="cartItems"
@@ -477,6 +530,7 @@ function showCartToast(message: string) {
       :user="user"
       @back="currentView = 'home'"
       @completed="completeOrder"
+      @open-delivery-info="openDeliveryInfoFromCheckout"
       @update-quantity="updateCartItemQuantity($event.item, $event.amount, false)"
       @remove-item="removeCartItem($event, false)"
     />

@@ -22,11 +22,17 @@ class AdminDashboardController extends AdminBaseController
         $yesterdaySales = Order::whereDate('ordered_at', today()->subDay())
             ->where('payment_status', 'paid')
             ->sum('total_amount');
-        $activeOrders = Order::with('items')
+        $activeOrders = Order::with(['items', 'user'])
             ->whereIn('order_status', ['received', 'cooking'])
             ->latest('ordered_at')
             ->limit(15)
             ->get();
+        $cookingOrders = Order::where('order_status', 'cooking')
+            ->whereNotNull('ordered_at')
+            ->get();
+        $lastUpdatedOrder = Order::latest('updated_at')->first(['updated_at']);
+        $averageCookingMinutes = $this->averageElapsedMinutes($cookingOrders);
+        $kitchenLoad = min(100, $cookingOrders->count() * 10);
 
         return response()->json([
             'summary' => [
@@ -34,16 +40,12 @@ class AdminDashboardController extends AdminBaseController
                 'today_sales' => (int) $todaySales,
                 'today_orders_change_rate' => $this->changeRate($todayOrders, $yesterdayOrders),
                 'today_sales_change_rate' => $this->changeRate((int) $todaySales, (int) $yesterdaySales),
-                'average_cooking_minutes' => 18,
-                'kitchen_load' => 82,
+                'average_cooking_minutes' => $averageCookingMinutes,
+                'kitchen_load' => $kitchenLoad,
             ],
             'orders' => $activeOrders->map(fn (Order $order) => $this->orderRow($order))->values(),
-            'delivery_networks' => [
-                ['name' => 'UberEats', 'count' => 8, 'status' => '稼働中'],
-                ['name' => 'Wolt', 'count' => 12, 'status' => '稼働中'],
-                ['name' => '出前館', 'count' => 0, 'status' => '停止中'],
-            ],
-            'kitchen_bars' => [26, 36, 30, 46, 60, 55, 40, 33, 26, 18],
+            'kitchen_bars' => $this->kitchenBars($cookingOrders),
+            'last_updated_at' => $lastUpdatedOrder?->updated_at?->toISOString(),
         ]);
     }
 
@@ -59,6 +61,37 @@ class AdminDashboardController extends AdminBaseController
         return (int) round((($current - $previous) / $previous) * 100);
     }
 
+    private function averageElapsedMinutes($orders): int
+    {
+        if ($orders->isEmpty()) {
+            return 0;
+        }
+
+        return (int) round($orders->avg(fn (Order $order) => $order->ordered_at->diffInMinutes(now())));
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function kitchenBars($orders): array
+    {
+        if ($orders->isEmpty()) {
+            return array_fill(0, 10, 0);
+        }
+
+        $buckets = array_fill(0, 10, 0);
+
+        foreach ($orders as $order) {
+            $elapsedMinutes = $order->ordered_at->diffInMinutes(now());
+            $index = min(9, intdiv($elapsedMinutes, 10));
+            $buckets[$index]++;
+        }
+
+        $max = max($buckets);
+
+        return array_map(fn (int $count) => $count === 0 ? 8 : max(12, (int) round($count / $max * 100)), $buckets);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -68,6 +101,7 @@ class AdminDashboardController extends AdminBaseController
             'id' => $order->id,
             'number' => '#' . $order->id,
             'order_number' => $order->order_number,
+            'customer_name' => $order->customer_name ?? $order->user?->name,
             'title' => $order->items
                 ->map(fn ($item) => "{$item->product_name} ×{$item->quantity}")
                 ->join('、'),
@@ -75,7 +109,11 @@ class AdminDashboardController extends AdminBaseController
             'type' => $order->receipt_type === 'delivery' ? 'デリバリー' : '店内',
             'elapsed_minutes' => $order->ordered_at ? $order->ordered_at->diffInMinutes(now()) : 0,
             'status' => $order->order_status,
+            'order_status' => $order->order_status,
+            'payment_status' => $order->payment_status,
             'total_amount' => $order->total_amount,
+            'created_at' => $order->ordered_at?->toISOString(),
+            'ordered_at' => $order->ordered_at?->toISOString(),
         ];
     }
 }
