@@ -15,6 +15,9 @@ class Store extends Model
         'description',
         'address',
         'phone',
+        'weekday_hours',
+        'weekend_hours',
+        'holiday',
         'image_path',
         'rating',
         'review_count',
@@ -33,5 +36,10 @@ class Store extends Model
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 }

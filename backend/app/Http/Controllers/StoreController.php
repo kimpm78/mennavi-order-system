@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Store;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class StoreController extends Controller
 {
     public function index(): JsonResponse
     {
-        $stores = Store::with(['products.category'])
+        $stores = Store::with(['products.category', 'reviews.user'])
             ->where('is_active', true)
             ->orderBy('display_order')
             ->get()
@@ -25,7 +26,7 @@ class StoreController extends Controller
             return response()->json(['message' => '店舗が見つかりません。'], 404);
         }
 
-        return response()->json(['store' => $this->storeResponse($store->load('products.category'))]);
+        return response()->json(['store' => $this->storeResponse($store->load(['products.category', 'reviews.user']))]);
     }
 
     /**
@@ -41,9 +42,24 @@ class StoreController extends Controller
             'description' => $store->description,
             'address' => $store->address,
             'phone' => $store->phone,
+            'weekdayHours' => $store->weekday_hours,
+            'weekendHours' => $store->weekend_hours,
+            'holiday' => $store->holiday,
             'imagePath' => $store->image_path,
-            'rating' => (string) $store->rating,
-            'reviews' => number_format($store->review_count),
+            'rating' => number_format((float) ($store->reviews->avg('rating') ?? 0), 1),
+            'reviews' => number_format($store->reviews->count()),
+            'orderCount' => $this->storeOrderCount($store),
+            'reviewItems' => $store->reviews
+                ->sortByDesc('created_at')
+                ->take(5)
+                ->map(fn ($review) => [
+                    'id' => $review->id,
+                    'rating' => $review->rating,
+                    'content' => $review->content,
+                    'userName' => $this->maskedUserName($review->user?->name),
+                    'createdAt' => $review->created_at?->toISOString(),
+                ])
+                ->values(),
             'budget' => $store->budget_label,
             'categories' => $categories,
             'tags' => $categories,
@@ -64,5 +80,26 @@ class StoreController extends Controller
                 ])
                 ->values(),
         ];
+    }
+
+    private function maskedUserName(?string $name): string
+    {
+        if (! $name) {
+            return 'ゲ****';
+        }
+
+        return mb_substr($name, 0, 2) . '****';
+    }
+
+    private function storeOrderCount(Store $store): int
+    {
+        return DB::table('order_items')
+            ->join('products', 'products.id', '=', 'order_items.product_id')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('products.store_id', $store->id)
+            ->whereNull('orders.deleted_at')
+            ->where('orders.order_status', '!=', 'canceled')
+            ->distinct('orders.id')
+            ->count('orders.id');
     }
 }

@@ -23,17 +23,29 @@ class Order extends Model
         'tax_rate',
         'tax_amount',
         'total_amount',
+        'earned_points',
         'order_status',
         'payment_method',
         'payment_status',
+        'delivery_staff_name',
         'note',
         'ordered_at',
+        'delivered_at',
+        'received_at',
+        'user_subscription_id',
+        'membership_discount_rate',
+        'membership_discount_amount',
+        'delivery_discount_amount',
+        'applied_subscription_code',
     ];
 
     protected $casts = [
-        'tax_rate' => 'decimal:2',
-        'ordered_at' => 'datetime',
-    ];
+            'tax_rate' => 'decimal:2',
+            'earned_points' => 'integer',
+            'ordered_at' => 'datetime',
+            'delivered_at' => 'datetime',
+            'received_at' => 'datetime',
+        ];
 
     public function user(): BelongsTo
     {
@@ -48,5 +60,19 @@ class Order extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    // 注文時に適用されたサブスクリプションを取得
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(
+            UserSubscription::class,
+            'user_subscription_id',
+        );
     }
 }

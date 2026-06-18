@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { ChevronLeft, ExternalLink, Info, MapPin, ShoppingBag, Utensils } from 'lucide-vue-next'
-import FallbackImage from '../../components/common/FallbackImage.vue'
-import AppFooter from '../../components/layout/AppFooter.vue'
-import AppHeader from '../../components/layout/AppHeader.vue'
+import { ChevronLeft, ExternalLink, Info, MapPin, Phone, ShoppingBag, Utensils } from 'lucide-vue-next'
+import FallbackImage from '@/components/common/FallbackImage.vue'
+import AppFooter from '@/components/layout/AppFooter.vue'
+import AppHeader from '@/components/layout/AppHeader.vue'
 
 const props = defineProps<{
   store: {
@@ -11,20 +11,29 @@ const props = defineProps<{
     tags?: string[]
     description?: string
     budget?: string
+    weekdayHours?: string | null
+    weekendHours?: string | null
+    holiday?: string | null
     rating: string
     reviews?: string
+    reviewItems?: StoreReview[]
     imagePath?: string | null
     imageClass: string
     address?: string | null
+    phone?: string | null
     products?: MenuItem[]
   }
   cartCount: number
+  cartRemainingText?: string
+  backLabel?: string
+  activeNav?: 'stores' | 'favorites' | ''
 }>()
 
 const emit = defineEmits<{
   back: []
   logout: []
   openCart: []
+  navigatePage: [path: string]
   openAccountSection: [section: 'profile' | 'orders' | 'delivery']
   addCart: [item: CartItem]
 }>()
@@ -45,10 +54,19 @@ type MenuItem = {
   toppings?: string[]
 }
 
+type StoreReview = {
+  id: number
+  rating: number
+  content?: string | null
+  userName?: string | null
+  createdAt?: string | null
+}
+
 type CartItem = {
   storeName: string
   menuItemId: number
   name: string
+  category: string
   price: number
   quantity: number
 }
@@ -70,6 +88,8 @@ const filteredMenuItems = computed(() => {
 
   return menuItems.value.filter((item) => item.category === activeCategory.value)
 })
+const reviewCount = computed(() => Number.parseInt((props.store.reviews ?? '0').replace(/,/g, ''), 10) || 0)
+const hasReviews = computed(() => reviewCount.value > 0)
 
 function updateQuantity(itemId: number, amount: number) {
   if (!quantities[itemId]) {
@@ -84,6 +104,18 @@ function isSoldOut(item: MenuItem) {
 
 function formatPrice(price: number) {
   return `${price.toLocaleString('ja-JP')}円`
+}
+
+function formatReviewDate(value?: string | null) {
+  if (!value) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value))
 }
 
 function googleMapEmbedUrl(address?: string | null) {
@@ -102,6 +134,14 @@ function googleMapOpenUrl(address?: string | null) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
 }
 
+function businessHourLines(value?: string | null, fallback = '') {
+  return (value || fallback).split('\n').filter(Boolean)
+}
+
+function holidayLabel(value?: string | null) {
+  return value ? value.split(',').filter(Boolean).join('、') : '火曜日'
+}
+
 function addToCart(item: MenuItem) {
   if (isSoldOut(item)) {
     return
@@ -113,6 +153,7 @@ function addToCart(item: MenuItem) {
     storeName: props.store.name,
     menuItemId: item.id,
     name: item.name,
+    category: item.category,
     price: item.price,
     quantity,
   })
@@ -127,11 +168,31 @@ function addToCart(item: MenuItem) {
       v-model:search-query="searchQuery"
       :is-authenticated="true"
       :cart-count="cartCount"
+      :active-nav="activeNav ?? 'stores'"
       @open-cart="emit('openCart')"
       @open-account-section="emit('openAccountSection', $event)"
       @brand-click="emit('back')"
+      @stores-click="emit('navigatePage', '/stores')"
+      @favorites-click="emit('navigatePage', '/favorites')"
       @logout="emit('logout')"
     />
+
+    <div
+      v-if="cartCount > 0"
+      class="border-b border-red-100 bg-red-50 px-5 py-3 text-sm font-black text-red-800 md:px-8"
+      role="status"
+    >
+      <div class="mx-auto flex w-full max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span>30分操作がない場合は自動で空になります ({{ cartRemainingText ?? '残り0分' }})</span>
+        <button
+          class="w-fit rounded-full bg-white px-4 py-2 text-xs font-black text-red-700 shadow-sm ring-1 ring-red-100 hover:bg-red-700 hover:text-white"
+          type="button"
+          @click="emit('openCart')"
+        >
+          カートを確認
+        </button>
+      </div>
+    </div>
 
     <main class="mx-auto w-full max-w-7xl px-5 py-4 md:px-8">
       <button
@@ -140,7 +201,7 @@ function addToCart(item: MenuItem) {
         @click="emit('back')"
       >
         <ChevronLeft class="h-4 w-4" />
-        店舗一覧へ戻る
+        {{ backLabel ?? '店舗一覧へ戻る' }}
       </button>
 
       <section class="relative min-h-[420px] overflow-hidden rounded-lg bg-neutral-100 px-6 py-16 text-white md:px-9 md:py-24">
@@ -150,9 +211,11 @@ function addToCart(item: MenuItem) {
         <div class="absolute inset-0 z-[1] bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
         <div class="relative z-[2] flex min-h-[280px] flex-col justify-end">
           <div class="mb-3 flex flex-wrap items-center gap-2">
-            <span class="rounded-full bg-red-700 px-3 py-1 text-xs font-black">人気</span>
-            <span class="rounded-full bg-amber-500 px-3 py-1 text-xs font-black">高評価</span>
-            <span class="text-sm font-black">★ {{ store.rating }} ({{ store.reviews ?? '2,400+' }}レビュー)</span>
+            <span v-if="hasReviews" class="rounded-full bg-red-700 px-3 py-1 text-xs font-black">レビューあり</span>
+            <span v-if="Number.parseFloat(store.rating) >= 4" class="rounded-full bg-amber-500 px-3 py-1 text-xs font-black">高評価</span>
+            <span class="text-sm font-black">
+              {{ hasReviews ? `★ ${store.rating} (${store.reviews ?? '0'}レビュー)` : 'レビューなし' }}
+            </span>
           </div>
           <h1 class="text-4xl font-black tracking-normal md:text-5xl">{{ store.name }}</h1>
           <p class="mt-4 text-lg font-bold text-white/90">
@@ -174,9 +237,18 @@ function addToCart(item: MenuItem) {
                 <p class="font-bold text-neutral-500">営業時間</p>
                 <dl class="mt-3 grid grid-cols-[72px_1fr] gap-y-3 font-bold">
                   <dt>平日</dt>
-                  <dd class="text-right leading-6">11:00-15:00<br />17:00-22:00</dd>
+                  <dd class="text-right leading-6">
+                    <template
+                      v-for="(line, index) in businessHourLines(store.weekdayHours, '11:00-15:00\n17:00-22:00')"
+                      :key="`${line}-${index}`"
+                    >
+                      {{ line }}<br />
+                    </template>
+                  </dd>
                   <dt>土日祝</dt>
-                  <dd class="text-right">11:00-22:00</dd>
+                  <dd class="text-right">{{ store.weekendHours || '11:00-22:00' }}</dd>
+                  <dt>休日</dt>
+                  <dd class="text-right">{{ holidayLabel(store.holiday) }}</dd>
                 </dl>
               </div>
 
@@ -211,6 +283,12 @@ function addToCart(item: MenuItem) {
                     地図を開く
                   </a>
                 </div>
+                <p v-if="store.phone" class="mt-3 flex items-center gap-2 font-bold">
+                  <Phone class="h-4 w-4 text-red-700" />
+                  <a class="hover:text-red-700"">
+                    {{ store.phone }}
+                  </a>
+                </p>
               </div>
             </div>
           </section>
@@ -328,6 +406,43 @@ function addToCart(item: MenuItem) {
           </div>
         </section>
       </div>
+
+      <section class="mt-10 rounded-lg border border-red-200 bg-white p-6">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p class="text-sm font-black text-red-700">Reviews</p>
+            <h2 class="text-2xl font-black tracking-normal">店舗レビュー</h2>
+          </div>
+          <p class="text-sm font-black text-neutral-600">
+            {{ hasReviews ? `★ ${store.rating} / ${store.reviews ?? '0'}件` : 'レビューなし' }}
+          </p>
+        </div>
+
+        <div v-if="store.reviewItems?.length" class="mt-5 grid gap-4 md:grid-cols-2">
+          <article
+            v-for="review in store.reviewItems"
+            :key="review.id"
+            class="rounded-lg border border-red-100 bg-neutral-50 p-4"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-black text-neutral-900">{{ review.userName ?? 'ゲスト' }}</p>
+                <p class="mt-1 text-sm font-black text-amber-600">
+                  {{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}
+                </p>
+              </div>
+              <p class="text-xs font-bold text-neutral-500">{{ formatReviewDate(review.createdAt) }}</p>
+            </div>
+            <p v-if="review.content" class="mt-3 text-sm font-bold leading-6 text-neutral-600">
+              {{ review.content }}
+            </p>
+          </article>
+        </div>
+
+        <p v-else class="mt-5 rounded-lg bg-neutral-50 px-5 py-8 text-center text-sm font-black text-neutral-500">
+          まだレビューはありません。
+        </p>
+      </section>
     </main>
 
     <AppFooter />

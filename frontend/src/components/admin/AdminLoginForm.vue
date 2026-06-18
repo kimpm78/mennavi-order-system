@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { Eye, EyeOff } from 'lucide-vue-next'
 import AuthMessage from '../auth/AuthMessage.vue'
 
 type LoginForm = {
@@ -17,6 +19,8 @@ const emit = defineEmits<{
   submit: []
   userLogin: []
 }>()
+
+const showPassword = ref(false)
 </script>
 
 <template>
@@ -28,14 +32,25 @@ const emit = defineEmits<{
 
     <label>
       パスワード
-      <input
-        v-model="form.password"
-        autocomplete="current-password"
-        minlength="8"
-        name="password"
-        required
-        type="password"
-      />
+      <span class="password-field">
+        <input
+          v-model="form.password"
+          autocomplete="current-password"
+          minlength="8"
+          name="password"
+          required
+          :type="showPassword ? 'text' : 'password'"
+        />
+        <button
+          class="password-toggle"
+          type="button"
+          :aria-label="showPassword ? 'パスワードを非表示' : 'パスワードを表示'"
+          @click="showPassword = !showPassword"
+        >
+          <EyeOff v-if="showPassword" class="h-5 w-5" />
+          <Eye v-else class="h-5 w-5" />
+        </button>
+      </span>
     </label>
 
     <AuthMessage type="error" :message="errorMessage" />

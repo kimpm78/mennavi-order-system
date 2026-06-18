@@ -41,4 +41,8 @@ return [
         'webhook_token' => env('PAYJP_WEBHOOK_TOKEN'),
     ],
 
+    'paypay' => [
+        'test_mode' => env('PAYPAY_TEST_MODE', true),
+    ],
+
 ];

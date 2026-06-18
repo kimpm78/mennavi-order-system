@@ -10,6 +10,7 @@ export type User = {
   address?: string | null
   role: UserRole
   status: UserStatus
+  point_balance?: number
   last_login_at?: string | null
   created_at: string
 }

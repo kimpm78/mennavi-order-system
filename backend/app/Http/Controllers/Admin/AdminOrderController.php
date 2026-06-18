@@ -14,7 +14,7 @@ class AdminOrderController extends AdminBaseController
             return response()->json(['message' => '管理者認証が必要です。'], 401);
         }
 
-        $orders = Order::with(['items', 'user'])
+        $orders = Order::with(['items.product.store', 'user'])
             ->latest('ordered_at')
             ->limit(50)
             ->get()
@@ -31,12 +31,39 @@ class AdminOrderController extends AdminBaseController
         }
 
         $validated = $request->validate([
-            'order_status' => ['required', 'string', 'in:received,cooking,completed,canceled'],
+            'order_status' => ['required', 'string', 'in:received,cooking,delivering,completed,canceled'],
+            'delivery_staff_name' => ['nullable', 'string', 'in:佐藤A,鈴木B'],
         ]);
 
-        $order->forceFill(['order_status' => $validated['order_status']])->save();
+        $wasCanceled = $order->order_status === 'canceled';
+        $nextValues = ['order_status' => $validated['order_status']];
 
-        $freshOrder = $order->fresh(['items', 'user']) ?? $order->load(['items', 'user']);
+        if ($validated['order_status'] === 'delivering') {
+            if ($order->receipt_type !== 'delivery') {
+                return response()->json(['message' => '配達注文のみ配送中に変更できます。'], 422);
+            }
+
+            $nextValues['delivery_staff_name'] = $validated['delivery_staff_name'] ?? '佐藤A';
+            $nextValues['delivered_at'] = now();
+        }
+
+        if ($validated['order_status'] === 'completed') {
+            $nextValues['received_at'] = now();
+        }
+
+        if ($validated['order_status'] === 'canceled') {
+            $nextValues['payment_status'] = $order->payment_status === 'paid' ? 'refunded' : $order->payment_status;
+        }
+
+        $order->forceFill($nextValues)->save();
+
+        if ($validated['order_status'] === 'canceled' && ! $wasCanceled && $order->user && $order->earned_points > 0) {
+            $order->user->forceFill([
+                'point_balance' => max(0, $order->user->point_balance - $order->earned_points),
+            ])->save();
+        }
+
+        $freshOrder = $order->fresh(['items.product.store', 'user']) ?? $order->load(['items.product.store', 'user']);
 
         return response()->json(['order' => $this->orderRow($freshOrder)]);
     }
@@ -51,6 +78,7 @@ class AdminOrderController extends AdminBaseController
             'number' => '#' . $order->id,
             'order_number' => $order->order_number,
             'customer_name' => $order->customer_name,
+            'store_name' => $order->items->first()?->product?->store?->name,
             'customer_phone' => $order->customer_phone ?? $order->user?->phone,
             'recipient_phone' => $order->customer_phone ?? $order->user?->phone,
             'shipping_address' => $order->user?->address,
@@ -61,9 +89,24 @@ class AdminOrderController extends AdminBaseController
             'status' => $order->order_status,
             'order_status' => $order->order_status,
             'payment_status' => $order->payment_status,
+            'receipt_type' => $order->receipt_type,
+            'delivery_staff_name' => $order->delivery_staff_name,
+            'delivered_at' => $order->delivered_at?->toISOString(),
+            'received_at' => $order->received_at?->toISOString(),
             'total_amount' => $order->total_amount,
             'created_at' => $order->ordered_at?->toISOString(),
             'ordered_at' => $order->ordered_at?->toISOString(),
+            'items' => $order->items->map(fn ($item) => [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_name' => $item->product_name,
+                'name' => $item->product_name,
+                'unit_price' => $item->unit_price,
+                'price' => $item->unit_price,
+                'quantity' => $item->quantity,
+                'subtotal' => $item->subtotal,
+                'store_name' => $item->product?->store?->name,
+            ])->values(),
         ];
     }
 }

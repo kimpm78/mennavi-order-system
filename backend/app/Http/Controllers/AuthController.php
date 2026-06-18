@@ -43,6 +43,37 @@ class AuthController extends Controller
         return response()->json($this->issueToken($user));
     }
 
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = User::where('email', $validated['email'])
+            ->where('role', 'user')
+            ->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'email' => ['登録されているメールアドレスを入力してください。'],
+            ]);
+        }
+
+        if ($user->status !== 'active') {
+            throw ValidationException::withMessages([
+                'email' => ['このアカウントは現在利用できません。'],
+            ]);
+        }
+
+        $user->forceFill([
+            'password' => Hash::make($validated['password']),
+        ])->save();
+        UserApiToken::where('user_id', $user->id)->delete();
+
+        return response()->json(['message' => 'パスワードを変更しました。新しいパスワードでログインしてください。']);
+    }
+
     public function adminLogin(Request $request): JsonResponse
     {
         $user = $this->validateCredentials($request);

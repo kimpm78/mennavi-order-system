@@ -15,8 +15,13 @@ onUnmounted(() => {
 })
 
 function goTo(path: string) {
-  window.history.pushState({}, '', `${basePath}${path}`)
-  currentPath.value = normalizePath(path)
+  const nextPath = normalizePath(path)
+
+  if (currentPath.value !== nextPath) {
+    window.history.pushState({}, '', `${basePath}${nextPath}`)
+  }
+
+  currentPath.value = nextPath
 }
 
 function syncPath() {
@@ -32,11 +37,19 @@ function normalizePath(path: string) {
     return '/login'
   }
 
+  if (normalizedPath === '/admin' || normalizedPath === '/admin/') {
+    return '/admin/dashboard'
+  }
+
   return normalizedPath
 }
 </script>
 
 <template>
-  <AdminLoginPage v-if="currentPath === '/admin/login'" :go-to="goTo" />
-  <UserLoginPage v-else :go-to="goTo" />
+  <AdminLoginPage
+    v-if="currentPath.startsWith('/admin')"
+    :current-path="currentPath"
+    :go-to="goTo"
+  />
+  <UserLoginPage v-else :current-path="currentPath" :go-to="goTo" />
 </template>
