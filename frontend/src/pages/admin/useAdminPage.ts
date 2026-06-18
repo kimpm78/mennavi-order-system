@@ -15,6 +15,7 @@ import {
 import type {
   ActiveOrderFilterKey,
   AdminCategoryRow,
+  AdminContactMessageRow,
   AdminOrderRow,
   AdminPageKey,
   AdminProductRow,
@@ -22,17 +23,30 @@ import type {
   AdminSettingRow,
   AdminStoreRow,
   DashboardOrderView,
+  MainVisualSetting,
   MenuRowView,
   OrderActionTarget,
   ToastType,
 } from './adminTypes'
 
-export function useAdminPage() {
+type TimeRangeMetric = {
+  label: string
+  order_count: number
+  load: number
+}
+
+const MAX_IMAGE_FILE_SIZE_MB = 5
+const MAX_IMAGE_FILE_SIZE_BYTES = MAX_IMAGE_FILE_SIZE_MB * 1024 * 1024
+
+export function useAdminPage(
+  initialAdminPage: AdminPageKey = 'dashboard',
+  onAdminPageRouteChange?: (page: AdminPageKey) => void,
+) {
   const loading = ref(false)
   const errorMessage = ref('')
   const successMessage = ref('')
   const admin = ref<User | null>(null)
-  const activeAdminPage = ref<AdminPageKey>('dashboard')
+  const activeAdminPage = ref<AdminPageKey>(initialAdminPage)
 
   const form = reactive({
     email: '',
@@ -49,12 +63,24 @@ export function useAdminPage() {
   })
   const orders = ref<AdminOrderRow[]>([])
   const activeOrderFilter = ref<ActiveOrderFilterKey>('all')
-  const kitchenBars = ref<number[]>([12, 18, 24, 30, 36, 42, 36, 30, 24, 18])
+  const kitchenBars = ref<Array<number | TimeRangeMetric>>([
+    { label: '10:00-12:00', order_count: 0, load: 0 },
+    { label: '12:00-14:00', order_count: 0, load: 0 },
+    { label: '14:00-16:00', order_count: 0, load: 0 },
+    { label: '16:00-19:00', order_count: 0, load: 0 },
+    { label: '19:00-22:00', order_count: 0, load: 0 },
+  ])
   const adminStores = ref<AdminStoreRow[]>([])
   const adminCategories = ref<AdminCategoryRow[]>([])
   const menuRows = ref<AdminProductRow[]>([])
   const salesRows = ref<AdminSalesRow[]>([])
+  const contactMessages = ref<AdminContactMessageRow[]>([])
   const settingRows = ref<AdminSettingRow[]>([])
+  const mainVisualSetting = ref<MainVisualSetting>({
+    title: '今日の一杯を見つけよう',
+    description: '厳選された究極のラーメン店ガイド。あなたの気分に合わせた最高の一杯をご提案します。',
+    image_path: null,
+  })
   const adminPageLoading = ref(false)
   const lastUpdatedAt = ref('')
   const selectedAdminStoreId = ref<number | null>(null)
@@ -70,14 +96,24 @@ export function useAdminPage() {
     name: '',
     description: '',
     address: '',
+    phone: '',
+    weekday_hours: '11:00-15:00\n17:00-22:00',
+    weekend_hours: '11:00-22:00',
+    holidays: ['火曜日'] as string[],
     budget_min: '',
     budget_max: '',
+    image: null as File | null,
+    image_path: '',
   })
 
   const storeProfileForm = reactive({
     name: '',
     description: '',
     address: '',
+    phone: '',
+    weekday_hours: '',
+    weekend_hours: '',
+    holidays: [] as string[],
     budget_min: '',
     budget_max: '',
   })
@@ -89,14 +125,26 @@ export function useAdminPage() {
     name: '',
     description: '',
     price: '',
+    image: null as File | null,
+    imagePath: '',
+    imageName: '',
     status: 'active',
     isDisplay: true,
+  })
+
+  const mainVisualForm = reactive({
+    title: '',
+    description: '',
+    image: null as File | null,
+    image_path: '',
+    image_name: '',
   })
 
   const activeAdminTitle = computed(() => {
     const labels: Record<AdminPageKey, string> = {
       dashboard: 'ダッシュボード',
       orders: '注文管理',
+      contactMessages: 'お問い合わせ',
       menus: '店舗・メニュー管理',
       storeCreate: '店舗追加',
       sales: '売上分析',
@@ -175,27 +223,61 @@ export function useAdminPage() {
     })),
   )
 
+  const activeOrdersForPage = computed(() =>
+    ordersForPage.value.filter((order) => ['received', 'cooking', 'delivering'].includes(order.status)),
+  )
+
   const filteredActiveOrders = computed(() => {
     if (activeOrderFilter.value === 'all') {
-      return ordersForPage.value
+      return activeOrdersForPage.value
     }
 
-    return ordersForPage.value.filter((order) => order.status === activeOrderFilter.value)
+    return activeOrdersForPage.value.filter((order) => order.status === activeOrderFilter.value)
   })
 
   const activeOrderFilterItems = computed(() => [
-    { key: 'all', label: `すべて ${orders.value.length}` },
-    { key: 'received', label: `新規注文 ${orders.value.filter((order) => order.status === 'received').length}` },
-    { key: 'cooking', label: `調理中 ${orders.value.filter((order) => order.status === 'cooking').length}` },
+    { key: 'all', label: `すべて ${activeOrdersForPage.value.length}` },
+    { key: 'received', label: `新規注文 ${activeOrdersForPage.value.filter((order) => order.status === 'received').length}` },
+    { key: 'cooking', label: `調理中 ${activeOrdersForPage.value.filter((order) => order.status === 'cooking').length}` },
+    { key: 'delivering', label: `配送中 ${activeOrdersForPage.value.filter((order) => order.status === 'delivering').length}` },
   ])
 
-  const kitchenBarRows = computed(() =>
-    kitchenBars.value.slice(0, 6).map((value, index) => ({
-      label: `${10 + index}:00`,
-      value,
-      max: 100,
-    })),
-  )
+  function timeRangeBarRows(values: Array<number | TimeRangeMetric>) {
+    if (values.length > 0 && typeof values[0] === 'object') {
+      return (values as TimeRangeMetric[]).map((value) => ({
+        label: value.label,
+        value: value.load,
+        orderCount: value.order_count,
+        max: 100,
+      }))
+    }
+
+    const intervals = [
+      { label: '10:00-12:00', start: 0, end: 2 },
+      { label: '12:00-14:00', start: 2, end: 4 },
+      { label: '14:00-16:00', start: 4, end: 6 },
+      { label: '16:00-19:00', start: 6, end: 9 },
+      { label: '19:00-22:00', start: 9, end: 12 },
+    ]
+
+    return intervals.map((interval) => {
+      const intervalValues = (values as number[]).slice(interval.start, interval.end)
+      const value = intervalValues.length
+        ? Math.round(intervalValues.reduce((total, current) => total + current, 0) / intervalValues.length)
+        : 0
+
+      return {
+        label: interval.label,
+        value,
+        orderCount: 0,
+        max: 100,
+      }
+    })
+  }
+
+  const kitchenBarRows = computed(() => timeRangeBarRows(kitchenBars.value))
+
+  const salesAnalysisBarRows = computed(() => timeRangeBarRows(kitchenBars.value))
 
   const kitchenStatus = computed(() => ({
     load: dashboardSummary.value.kitchen_load,
@@ -233,7 +315,8 @@ export function useAdminPage() {
         headers: authHeaders(token),
       })
       admin.value = response.user
-      await loadAdminPage('dashboard')
+      onAdminPageRouteChange?.(activeAdminPage.value)
+      await loadAdminPage(activeAdminPage.value)
     } catch {
       clearAdminToken()
     }
@@ -254,7 +337,8 @@ export function useAdminPage() {
       admin.value = response.user
       form.password = ''
       successMessage.value = '管理者としてログインしました。'
-      await loadAdminPage('dashboard')
+      onAdminPageRouteChange?.(activeAdminPage.value)
+      await loadAdminPage(activeAdminPage.value)
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '処理に失敗しました。'
     } finally {
@@ -263,6 +347,20 @@ export function useAdminPage() {
   }
 
   async function selectAdminPage(page: AdminPageKey) {
+    activeAdminPage.value = page
+    onAdminPageRouteChange?.(page)
+    await loadAdminPage(page)
+  }
+
+  async function syncAdminPageFromRoute(page: AdminPageKey) {
+    if (activeAdminPage.value === page) {
+      return
+    }
+
+    await setAdminPage(page)
+  }
+
+  async function setAdminPage(page: AdminPageKey) {
     activeAdminPage.value = page
     await loadAdminPage(page)
   }
@@ -281,7 +379,7 @@ export function useAdminPage() {
         const response = await apiRequest<{
           summary: typeof dashboardSummary.value
           orders: AdminOrderRow[]
-          kitchen_bars: number[]
+          kitchen_bars: Array<number | TimeRangeMetric>
           last_updated_at?: string | null
         }>('/admin/dashboard', { headers: authHeaders(token) })
 
@@ -297,6 +395,14 @@ export function useAdminPage() {
           headers: authHeaders(token),
         })
         orders.value = response.orders
+        return
+      }
+
+      if (page === 'contactMessages') {
+        const response = await apiRequest<{ contact_messages: AdminContactMessageRow[] }>('/admin/contact-messages', {
+          headers: authHeaders(token),
+        })
+        contactMessages.value = response.contact_messages
         return
       }
 
@@ -321,7 +427,7 @@ export function useAdminPage() {
       }
 
       if (page === 'sales') {
-        const response = await apiRequest<{ summary: AdminSalesRow[]; bars: number[] }>('/admin/sales', {
+        const response = await apiRequest<{ summary: AdminSalesRow[]; bars: Array<number | TimeRangeMetric> }>('/admin/sales', {
           headers: authHeaders(token),
         })
         salesRows.value = response.summary
@@ -330,10 +436,15 @@ export function useAdminPage() {
       }
 
       if (page === 'settings') {
-        const response = await apiRequest<{ settings: AdminSettingRow[] }>('/admin/settings', {
+        const response = await apiRequest<{
+          settings: AdminSettingRow[]
+          main_visual_setting: MainVisualSetting
+        }>('/admin/settings', {
           headers: authHeaders(token),
         })
         settingRows.value = response.settings
+        mainVisualSetting.value = response.main_visual_setting
+        syncMainVisualForm(response.main_visual_setting)
       }
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '管理データの取得に失敗しました。'
@@ -375,6 +486,10 @@ export function useAdminPage() {
     storeProfileForm.name = store.name
     storeProfileForm.description = store.description ?? ''
     storeProfileForm.address = store.address ?? ''
+    storeProfileForm.phone = store.phone ?? ''
+    storeProfileForm.weekday_hours = store.weekday_hours ?? ''
+    storeProfileForm.weekend_hours = store.weekend_hours ?? ''
+    storeProfileForm.holidays = parseHolidayValue(store.holiday)
     storeProfileForm.budget_min = budget.min
     storeProfileForm.budget_max = budget.max
   }
@@ -408,6 +523,10 @@ export function useAdminPage() {
           name: storeProfileForm.name,
           description: storeProfileForm.description || null,
           address: storeProfileForm.address || null,
+          phone: storeProfileForm.phone || null,
+          weekday_hours: storeProfileForm.weekday_hours || null,
+          weekend_hours: storeProfileForm.weekend_hours || null,
+          holiday: formatHolidayValue(storeProfileForm.holidays),
           budget_label: formatBudgetLabel(storeProfileForm.budget_min, storeProfileForm.budget_max),
           is_active: selectedAdminStore.value.is_active,
         }),
@@ -439,23 +558,56 @@ export function useAdminPage() {
           name: storeForm.name,
           description: storeForm.description || null,
           address: storeForm.address || null,
+          phone: storeForm.phone || null,
+          weekday_hours: storeForm.weekday_hours || null,
+          weekend_hours: storeForm.weekend_hours || null,
+          holiday: formatHolidayValue(storeForm.holidays),
           budget_label: formatBudgetLabel(storeForm.budget_min, storeForm.budget_max),
         }),
       })
-      storeForm.name = ''
-      storeForm.description = ''
-      storeForm.address = ''
-      storeForm.budget_min = ''
-      storeForm.budget_max = ''
-      activeAdminPage.value = 'menus'
-      await loadAdminPage('menus')
-      selectAdminStore({ ...response.store, store_id: response.store.id })
+      let createdStore = response.store
+
+      if (storeForm.image) {
+        createdStore = await uploadStoreImageToStore(response.store.id, storeForm.image)
+      }
+
+      resetStoreForm()
+      await selectAdminPage('menus')
+      selectAdminStore({ ...createdStore, store_id: createdStore.id })
       showAdminToast('店舗を追加しました。')
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '店舗登録に失敗しました。'
     } finally {
       adminPageLoading.value = false
     }
+  }
+
+  function resetStoreForm() {
+    storeForm.name = ''
+    storeForm.description = ''
+    storeForm.address = ''
+    storeForm.phone = ''
+    storeForm.weekday_hours = '11:00-15:00\n17:00-22:00'
+    storeForm.weekend_hours = '11:00-22:00'
+    storeForm.holidays = ['火曜日']
+    storeForm.budget_min = ''
+    storeForm.budget_max = ''
+    storeForm.image = null
+    if (storeForm.image_path.startsWith('blob:')) {
+      URL.revokeObjectURL(storeForm.image_path)
+    }
+    storeForm.image_path = ''
+  }
+
+  function parseHolidayValue(value?: string | null) {
+    return (value ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+
+  function formatHolidayValue(value: string[]) {
+    return value.length ? value.join(',') : null
   }
 
   async function createAdminProduct() {
@@ -469,19 +621,27 @@ export function useAdminPage() {
 
     try {
       const isEditing = editingProductId.value !== null
-      await apiRequest(isEditing ? `/admin/products/${editingProductId.value}` : '/admin/products', {
-        method: isEditing ? 'PATCH' : 'POST',
-        headers: authHeaders(token),
-        body: JSON.stringify({
-          store_id: Number(productForm.store_id),
-          category_id: Number(productForm.category_id),
-          name: productForm.name,
-          description: productForm.description || null,
-          price: Number(productForm.price),
-          status: productForm.isDisplay ? 'active' : productForm.status,
-        }),
-      })
-      resetProductForm()
+      const response = await apiRequest<{ product: AdminProductRow }>(
+        isEditing ? `/admin/products/${editingProductId.value}` : '/admin/products',
+        {
+          method: isEditing ? 'PATCH' : 'POST',
+          headers: authHeaders(token),
+          body: JSON.stringify({
+            store_id: Number(productForm.store_id),
+            category_id: Number(productForm.category_id),
+            name: productForm.name,
+            description: productForm.description || null,
+            price: Number(productForm.price),
+            status: productForm.isDisplay ? 'active' : productForm.status,
+          }),
+        },
+      )
+
+      if (productForm.image) {
+        const updatedProduct = await uploadProductImageToProduct(response.product.id, productForm.image)
+        replaceAdminProduct(updatedProduct)
+      }
+
       await loadAdminPage('menus')
       closeProductModal()
       showAdminToast(isEditing ? 'メニューを更新しました。' : 'メニューを追加しました。')
@@ -510,6 +670,9 @@ export function useAdminPage() {
     productForm.name = menu.name
     productForm.description = menu.description ?? ''
     productForm.price = String(menu.price)
+    productForm.image = null
+    productForm.imagePath = menu.imagePath ?? ''
+    productForm.imageName = ''
     productForm.status = menu.status
     productForm.isDisplay = menu.status === 'active'
     isProductModalOpen.value = true
@@ -528,6 +691,12 @@ export function useAdminPage() {
     productForm.name = ''
     productForm.description = ''
     productForm.price = ''
+    productForm.image = null
+    if (productForm.imagePath.startsWith('blob:')) {
+      URL.revokeObjectURL(productForm.imagePath)
+    }
+    productForm.imagePath = ''
+    productForm.imageName = ''
     productForm.status = 'active'
     productForm.isDisplay = true
   }
@@ -569,25 +738,17 @@ export function useAdminPage() {
       return
     }
 
+    if (!validateImageFileSize(file, input)) {
+      return
+    }
+
     adminPageLoading.value = true
     errorMessage.value = ''
 
     try {
-      const formData = new FormData()
-      formData.append('image', file)
-
-      const response = await fetch(`${apiBaseUrl}/admin/stores/${selectedAdminStore.value.id}/image`, {
-        method: 'POST',
-        headers: authHeaders(token),
-        body: formData,
-      })
-      const data = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        throw new Error(data.message ?? '店舗画像のアップロードに失敗しました。')
-      }
-
-      await loadAdminPage('menus')
+      const updatedStore = await uploadStoreImageToStore(selectedAdminStore.value.id, file)
+      replaceAdminStore(updatedStore)
+      selectAdminStore({ ...updatedStore, store_id: updatedStore.id })
       showAdminToast('店舗画像を保存しました。')
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '店舗画像のアップロードに失敗しました。'
@@ -597,21 +758,276 @@ export function useAdminPage() {
     }
   }
 
-  function uploadAdminProductImage() {
-    showAdminToast('商品画像アップロードは後続対応予定です。', 'info')
+  function setCreateStoreImage(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    if (!validateImageFileSize(file, input)) {
+      return
+    }
+
+    if (storeForm.image_path.startsWith('blob:')) {
+      URL.revokeObjectURL(storeForm.image_path)
+    }
+
+    storeForm.image = file
+    storeForm.image_path = URL.createObjectURL(file)
+    input.value = ''
   }
 
-  async function handleUpdateOrderStatus(order: OrderActionTarget) {
+  async function uploadStoreImageToStore(storeId: number, file: File) {
+    const token = getAdminToken()
+
+    if (!token) {
+      throw new Error('管理者認証が必要です。')
+    }
+
+    const formData = new FormData()
+    formData.append('image', file)
+
+    const response = await fetch(`${apiBaseUrl}/admin/stores/${storeId}/image`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: formData,
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(data.message ?? '店舗画像のアップロードに失敗しました。')
+    }
+
+    return data.store as AdminStoreRow
+  }
+
+  function replaceAdminStore(store: AdminStoreRow) {
+    const storeId = store.id ?? store.store_id
+    const index = adminStores.value.findIndex((item) => (item.id ?? item.store_id) === storeId)
+
+    if (index >= 0) {
+      adminStores.value.splice(index, 1, store)
+      return
+    }
+
+    adminStores.value.push(store)
+  }
+
+  function uploadAdminProductImage(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    if (!validateImageFileSize(file, input)) {
+      return
+    }
+
+    if (productForm.imagePath.startsWith('blob:')) {
+      URL.revokeObjectURL(productForm.imagePath)
+    }
+
+    productForm.image = file
+    productForm.imagePath = URL.createObjectURL(file)
+    productForm.imageName = file.name
+    input.value = ''
+  }
+
+  async function uploadProductImageToProduct(productId: number, file: File) {
+    const token = getAdminToken()
+
+    if (!token) {
+      throw new Error('管理者認証が必要です。')
+    }
+
+    const formData = new FormData()
+    formData.append('image', file)
+
+    const response = await fetch(`${apiBaseUrl}/admin/products/${productId}/image`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: formData,
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(data.message ?? 'メニュー画像のアップロードに失敗しました。')
+    }
+
+    return normalizeAdminProduct(data.product)
+  }
+
+  function validateImageFileSize(file: File, input: HTMLInputElement) {
+    if (file.size <= MAX_IMAGE_FILE_SIZE_BYTES) {
+      return true
+    }
+
+    input.value = ''
+    showAdminToast(`画像サイズが${MAX_IMAGE_FILE_SIZE_MB}MBを超えています。${MAX_IMAGE_FILE_SIZE_MB}MB以下の画像を選択してください。`, 'warning')
+    return false
+  }
+
+  function syncMainVisualForm(setting: MainVisualSetting) {
+    mainVisualForm.title = setting.title
+    mainVisualForm.description = setting.description ?? ''
+    mainVisualForm.image = null
+    mainVisualForm.image_path = setting.image_path ?? ''
+    mainVisualForm.image_name = ''
+  }
+
+  function setMainVisualImage(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    if (!validateImageFileSize(file, input)) {
+      return
+    }
+
+    if (mainVisualForm.image_path.startsWith('blob:')) {
+      URL.revokeObjectURL(mainVisualForm.image_path)
+    }
+
+    mainVisualForm.image = file
+    mainVisualForm.image_path = URL.createObjectURL(file)
+    mainVisualForm.image_name = file.name
+    input.value = ''
+  }
+
+  async function saveMainVisualSetting() {
+    const token = getAdminToken()
+    if (!token) {
+      return
+    }
+
+    adminPageLoading.value = true
+    errorMessage.value = ''
+
+    try {
+      const response = await apiRequest<{ main_visual_setting: MainVisualSetting }>('/admin/main-visual-setting', {
+        method: 'PATCH',
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          title: mainVisualForm.title,
+          description: mainVisualForm.description || null,
+        }),
+      })
+
+      let savedSetting = response.main_visual_setting
+
+      if (mainVisualForm.image) {
+        savedSetting = await uploadMainVisualImage(mainVisualForm.image)
+      }
+
+      mainVisualSetting.value = savedSetting
+      syncMainVisualForm(savedSetting)
+      showAdminToast('メイン画面設定を保存しました。')
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : 'メイン画面設定の保存に失敗しました。'
+    } finally {
+      adminPageLoading.value = false
+    }
+  }
+
+  async function uploadMainVisualImage(file: File) {
+    const token = getAdminToken()
+
+    if (!token) {
+      throw new Error('管理者認証が必要です。')
+    }
+
+    const formData = new FormData()
+    formData.append('image', file)
+
+    const response = await fetch(`${apiBaseUrl}/admin/main-visual-setting/image`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: formData,
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(data.message ?? 'メイン画像のアップロードに失敗しました。')
+    }
+
+    return data.main_visual_setting as MainVisualSetting
+  }
+
+  function replaceAdminProduct(product: AdminProductRow) {
+    const index = menuRows.value.findIndex((item) => item.id === product.id)
+
+    if (index >= 0) {
+      menuRows.value.splice(index, 1, product)
+      return
+    }
+
+    menuRows.value.push(product)
+  }
+
+  function normalizeAdminProduct(product: AdminProductRow & { image_path?: string | null }) {
+    return {
+      ...product,
+      imagePath: product.imagePath ?? product.image_path ?? null,
+    }
+  }
+
+  async function handleUpdateOrderStatus(order: OrderActionTarget, deliveryStaffName?: string) {
     const nextStatus = nextOrderStatus(order)
 
     if (!nextStatus) {
       return
     }
 
-    await updateOrderStatus(order, nextStatus)
+    await updateOrderStatus(order, nextStatus, deliveryStaffName)
   }
 
-  async function updateOrderStatus(order: OrderActionTarget, status: 'cooking' | 'completed') {
+  async function cancelOrder(order: OrderActionTarget) {
+    await updateOrderStatus(order, 'canceled')
+  }
+
+  async function updateContactMessageStatus(message: AdminContactMessageRow, status: string) {
+    const token = getAdminToken()
+    if (!token) {
+      return
+    }
+
+    adminPageLoading.value = true
+    errorMessage.value = ''
+
+    try {
+      const response = await apiRequest<{ contact_message: AdminContactMessageRow }>(
+        `/admin/contact-messages/${message.id}`,
+        {
+          method: 'PATCH',
+          headers: authHeaders(token),
+          body: JSON.stringify({ status }),
+        },
+      )
+
+      const index = contactMessages.value.findIndex((item) => item.id === message.id)
+      if (index >= 0) {
+        contactMessages.value.splice(index, 1, response.contact_message)
+      }
+      showAdminToast('お問い合わせの対応状況を更新しました。')
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : 'お問い合わせの更新に失敗しました。'
+    } finally {
+      adminPageLoading.value = false
+    }
+  }
+
+  async function updateOrderStatus(
+    order: OrderActionTarget,
+    status: 'cooking' | 'delivering' | 'completed' | 'canceled',
+    deliveryStaffName?: string,
+  ) {
     const token = getAdminToken()
     const orderId = order.id ?? Number(order.order_id)
     if (!token || !orderId) {
@@ -622,11 +1038,20 @@ export function useAdminPage() {
     errorMessage.value = ''
 
     try {
-      await apiRequest<{ order: AdminOrderRow }>(`/admin/orders/${orderId}/status`, {
+      const response = await apiRequest<{ order: AdminOrderRow }>(`/admin/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: authHeaders(token),
-        body: JSON.stringify({ order_status: status }),
+        body: JSON.stringify({
+          order_status: status,
+          ...(status === 'delivering' ? { delivery_staff_name: deliveryStaffName || '佐藤A' } : {}),
+        }),
       })
+
+      const index = orders.value.findIndex((item) => item.id === response.order.id)
+      if (index >= 0) {
+        orders.value.splice(index, 1, response.order)
+      }
+
       await loadAdminPage(activeAdminPage.value)
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '注文ステータスの更新に失敗しました。'
@@ -635,14 +1060,22 @@ export function useAdminPage() {
     }
   }
 
-  function nextOrderStatus(order: OrderActionTarget): 'cooking' | 'completed' | undefined {
+  function nextOrderStatus(order: OrderActionTarget): 'cooking' | 'delivering' | 'completed' | undefined {
     const status = order.status ?? order.order_status
 
     if (status === 'completed' || status === 'canceled') {
       return undefined
     }
 
-    return status === 'cooking' ? 'completed' : 'cooking'
+    if (status === 'cooking') {
+      return isDeliveryOrder(order) ? 'delivering' : 'completed'
+    }
+
+    if (status === 'delivering') {
+      return 'completed'
+    }
+
+    return 'cooking'
   }
 
   function orderActionLabel(order: OrderActionTarget) {
@@ -652,7 +1085,15 @@ export function useAdminPage() {
       return '対応済み'
     }
 
-    return status === 'cooking' ? '完了' : '調理開始'
+    if (status === 'cooking') {
+      return isDeliveryOrder(order) ? '配送開始' : '完了'
+    }
+
+    return status === 'delivering' ? '完了' : '調理開始'
+  }
+
+  function isDeliveryOrder(order: OrderActionTarget) {
+    return order.receipt_type === 'delivery' || order.type === 'デリバリー'
   }
 
   async function logout() {
@@ -686,6 +1127,8 @@ export function useAdminPage() {
     adminStoreRowsForPage,
     adminToast,
     closeProductModal,
+    cancelOrder,
+    contactMessages,
     createAdminProduct,
     createAdminStore,
     deleteAdminProduct,
@@ -704,6 +1147,8 @@ export function useAdminPage() {
     lastUpdatedLabel,
     loading,
     logout,
+    mainVisualForm,
+    mainVisualSetting,
     menuRowsForPage,
     nextOrderStatus,
     orderActionLabel,
@@ -713,16 +1158,22 @@ export function useAdminPage() {
     paymentStatusLabel,
     productForm,
     salesRowsForPage,
+    salesAnalysisBarRows,
     saveAdminStoreProfile,
+    saveMainVisualSetting,
     selectAdminPage,
     selectAdminStore,
     selectedAdminStore,
     settingRows,
+    setCreateStoreImage,
+    setMainVisualImage,
     storeForm,
     storeProfileForm,
+    syncAdminPageFromRoute,
     submitAdminLogin,
     successMessage,
     summaryCards,
+    updateContactMessageStatus,
     uploadAdminProductImage,
     uploadAdminStoreImage,
   }

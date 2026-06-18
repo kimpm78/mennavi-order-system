@@ -53,6 +53,7 @@ export function orderStatusLabel(status?: string | null) {
   const labels: Record<string, string> = {
     received: '待機中',
     cooking: '調理中',
+    delivering: '配送中',
     completed: '完了',
     canceled: '取消',
   }

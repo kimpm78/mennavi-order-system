@@ -23,18 +23,12 @@ return new class extends Migration
             $table->string('address')->nullable()->comment('住所');
             $table->string('role', 20)->default('user')->index()->comment('権限');
             $table->string('status', 20)->default('active')->index()->comment('利用状態');
+            $table->integer('point_balance')->default(0)->comment('保有ポイント');
             $table->timestamp('email_verified_at')->nullable()->comment('メール認証日時');
             $table->timestamp('last_login_at')->nullable()->comment('最終ログイン日時');
-            $table->rememberToken();
+            $table->rememberToken()->comment('ログイン保持トークン');
             $table->timestamps();
             $table->softDeletes()->comment('削除日時');
-        });
-
-        // パスワードリセットトークンテーブルの作成
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
         });
 
         // セッションテーブルの作成
@@ -51,6 +45,7 @@ return new class extends Migration
             DB::statement("COMMENT ON TABLE users IS 'ユーザー情報'");
             DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('user', 'admin'))");
             DB::statement("ALTER TABLE users ADD CONSTRAINT users_status_check CHECK (status IN ('active', 'suspended', 'withdrawn'))");
+            DB::statement('ALTER TABLE users ADD CONSTRAINT users_point_balance_non_negative CHECK (point_balance >= 0)');
         }
     }
 
@@ -60,7 +55,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('sessions');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('users');
     }
 };

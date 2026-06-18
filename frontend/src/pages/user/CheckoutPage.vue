@@ -10,6 +10,7 @@ type CartItem = {
   storeName: string
   menuItemId: number
   name: string
+  category?: string
   price: number
   quantity: number
 }
@@ -22,6 +23,12 @@ type PaymentMethod = {
   exp_month?: number | null
   exp_year?: number | null
   is_default: boolean
+}
+
+type UserSubscription = {
+  status?: string
+  current_period_end?: string | null
+  cancel_at_period_end?: boolean
 }
 
 type PayjpElement = {
@@ -49,6 +56,7 @@ const props = defineProps<{
   cartItems: CartItem[]
   cartTotal: number
   user: User
+  subscription?: UserSubscription | null
 }>()
 
 const emit = defineEmits<{
@@ -74,13 +82,33 @@ let payjpScriptPromise: Promise<void> | null = null
 
 const deliveryFeeBase = 350
 const taxRate = 8
+const plusDiscountRate = 15
+const hasActivePlus = computed(() => {
+  if (props.subscription?.status !== 'active') {
+    return false
+  }
+
+  if (!props.subscription.current_period_end) {
+    return true
+  }
+
+  return new Date(props.subscription.current_period_end).getTime() > Date.now()
+})
 const deliveryFee = computed(() => (receiptType.value === 'delivery' ? deliveryFeeBase : 0))
-const discount = computed(() => 0)
-const taxAmount = computed(() => Math.floor((props.cartTotal + deliveryFee.value) * taxRate / 100))
-const totalAmount = computed(() => props.cartTotal + deliveryFee.value + taxAmount.value - discount.value)
+const deliveryDiscount = computed(() => (hasActivePlus.value && receiptType.value === 'delivery' ? deliveryFee.value : 0))
+const finalDeliveryFee = computed(() => Math.max(deliveryFee.value - deliveryDiscount.value, 0))
+const membershipDiscount = computed(() => (hasActivePlus.value ? Math.floor(props.cartTotal * plusDiscountRate / 100) : 0))
+const discount = computed(() => membershipDiscount.value + deliveryDiscount.value)
+const discountedSubtotal = computed(() => Math.max(props.cartTotal - membershipDiscount.value, 0))
+const taxAmount = computed(() => Math.floor((discountedSubtotal.value + finalDeliveryFee.value) * taxRate / 100))
+const totalAmount = computed(() => discountedSubtotal.value + finalDeliveryFee.value + taxAmount.value)
 const totalQuantity = computed(() =>
   props.cartItems.reduce((total, item) => total + item.quantity, 0),
 )
+const hasMainMenuInCart = computed(() =>
+  props.cartItems.some((item) => item.category === 'メイン'),
+)
+const canPlaceOrder = computed(() => props.cartItems.length > 0 && hasMainMenuInCart.value)
 const deliveryPostalCode = computed(() => {
   if (!props.user.postal_code) {
     return ''
@@ -103,7 +131,28 @@ const primaryPaymentButtonLabel = computed(() => {
     return '決済中...'
   }
 
-  return canSubmitCardPayment.value ? '注文を確定する' : '決済画面へ'
+  if (paymentMethod.value === 'card') {
+    return canSubmitCardPayment.value ? '注文を確定する' : '決済画面へ'
+  }
+
+  if (paymentMethod.value === 'paypay') {
+    return 'PayPayで注文を確定する'
+  }
+
+  return '注文を確定する'
+})
+const primaryPaymentNotice = computed(() => {
+  if (paymentMethod.value === 'card') {
+    return canSubmitCardPayment.value
+      ? '「注文を確定する」を押すと、利用規約に同意したことになります。'
+      : 'カード情報の入力画面に進みます。'
+  }
+
+  if (paymentMethod.value === 'paypay') {
+    return 'テストモードのPayPay / QR決済として注文を確定します。'
+  }
+
+  return '現金（代引）で注文を確定します。'
 })
 
 onMounted(() => {
@@ -134,6 +183,11 @@ function selectPaymentMethod(method: 'card' | 'paypay' | 'cash') {
 async function openPaymentForm() {
   if (!props.cartItems.length) {
     paymentError.value = 'カートが空です。'
+    return
+  }
+
+  if (!hasMainMenuInCart.value) {
+    paymentError.value = '注文にはメインメニューを1点以上追加してください。'
     return
   }
 
@@ -315,7 +369,7 @@ function normalizePayjpError(message?: string) {
 }
 
 async function handlePrimaryPaymentAction() {
-  if (canSubmitCardPayment.value) {
+  if (paymentMethod.value !== 'card' || canSubmitCardPayment.value) {
     await submitOrder()
     return
   }
@@ -335,12 +389,12 @@ async function submitOrder() {
     return
   }
 
-  if (paymentMethod.value !== 'card') {
-    paymentError.value = '現在はクレジットカード決済のみ対応しています。'
+  if (!hasMainMenuInCart.value) {
+    paymentError.value = 'サイドメニュー、ドリンク & お酒のみでは注文できません。メインメニューを1点以上追加してください。'
     return
   }
 
-  if (!selectedPaymentMethod.value && !oneTimePayjpToken.value) {
+  if (paymentMethod.value === 'card' && !selectedPaymentMethod.value && !oneTimePayjpToken.value) {
     paymentError.value = 'カード情報を設定してください。'
     return
   }
@@ -352,14 +406,16 @@ async function submitOrder() {
     await apiRequest('/orders', {
       method: 'POST',
       headers: authHeaders(token),
-        body: JSON.stringify({
-          ...(selectedPaymentMethod.value
+      body: JSON.stringify({
+        ...(paymentMethod.value === 'card'
+          ? selectedPaymentMethod.value
             ? { payment_method_id: selectedPaymentMethod.value.id }
-            : { payjp_token: oneTimePayjpToken.value }),
-          payment_method: 'card',
-          receipt_type: receiptType.value,
-        }),
-      })
+            : { payjp_token: oneTimePayjpToken.value }
+          : {}),
+        payment_method: paymentMethod.value,
+        receipt_type: receiptType.value,
+      }),
+    })
 
     emit('completed')
   } catch (error) {
@@ -431,7 +487,9 @@ function formatPaymentMethod(method: PaymentMethod) {
 
           <div>
             <h2 class="text-2xl font-black tracking-normal">{{ item.name }}</h2>
-            <p class="mt-2 text-sm font-bold text-neutral-500">{{ item.storeName }}</p>
+            <p class="mt-2 text-sm font-bold text-neutral-500">
+              {{ item.storeName }}<span v-if="item.category"> ・ {{ item.category }}</span>
+            </p>
             <p class="mt-4 text-2xl font-black text-red-700">{{ formatPrice(item.price) }}</p>
           </div>
 
@@ -562,6 +620,20 @@ function formatPaymentMethod(method: PaymentMethod) {
               登録済みカードがありません。決済画面でカード情報を入力してください。
             </p>
           </div>
+          <div
+            v-else-if="paymentMethod === 'paypay'"
+            class="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5"
+          >
+            <div class="flex items-start gap-3">
+              <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0 text-red-700" />
+              <div>
+                <p class="text-sm font-black text-neutral-900">PayPay / QR決済</p>
+                <p class="mt-1 text-xs font-bold leading-5 text-neutral-500">
+                  テストモードで決済完了として処理します。
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="rounded-lg border border-red-200 bg-white p-6">
@@ -573,13 +645,30 @@ function formatPaymentMethod(method: PaymentMethod) {
             </div>
             <div class="flex justify-between">
               <dt>配送料</dt>
-              <dd>{{ deliveryFee ? formatPrice(deliveryFee) : '無料' }}</dd>
+              <dd>
+                <span v-if="deliveryDiscount" class="text-red-700">送料無料</span>
+                <span v-else>{{ deliveryFee ? formatPrice(deliveryFee) : '無料' }}</span>
+              </dd>
+            </div>
+            <div
+              v-if="membershipDiscount"
+              class="flex justify-between text-red-700"
+            >
+              <dt>麺ナビ Plus {{ plusDiscountRate }}%割引</dt>
+              <dd>-{{ formatPrice(membershipDiscount) }}</dd>
+            </div>
+            <div
+              v-if="deliveryDiscount"
+              class="flex justify-between text-red-700"
+            >
+              <dt>麺ナビ Plus 配送料無料</dt>
+              <dd>-{{ formatPrice(deliveryDiscount) }}</dd>
             </div>
             <div class="flex justify-between">
               <dt>税金 ({{ taxRate }}%)</dt>
               <dd>{{ formatPrice(taxAmount) }}</dd>
             </div>
-            <div class="flex justify-between text-amber-700">
+            <div v-if="!hasActivePlus" class="flex justify-between text-amber-700">
               <dt>クーポン割引</dt>
               <dd>-{{ formatPrice(discount) }}</dd>
             </div>
@@ -616,21 +705,24 @@ function formatPaymentMethod(method: PaymentMethod) {
             {{ paymentError }}
           </p>
 
+          <p
+            v-if="cartItems.length && !hasMainMenuInCart"
+            class="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-black leading-6 text-red-700"
+          >
+            サイドメニュー、ドリンク & お酒のみでは注文できません。メインメニューを1点以上追加してください。
+          </p>
+
           <button
             class="mt-5 h-16 w-full rounded-lg bg-red-700 text-lg font-black text-white hover:bg-red-800 disabled:opacity-50"
             type="button"
-            :disabled="paymentLoading || !cartItems.length"
+            :disabled="paymentLoading || !canPlaceOrder"
             @click="handlePrimaryPaymentAction"
           >
             {{ primaryPaymentButtonLabel }}
           </button>
 
           <p class="mt-4 text-center text-xs font-bold leading-5 text-neutral-500">
-            {{
-              canSubmitCardPayment
-                ? '「注文を確定する」を押すと、利用規約に同意したことになります。'
-                : 'カード情報の入力画面に進みます。'
-            }}
+            {{ primaryPaymentNotice }}
           </p>
         </section>
       </aside>

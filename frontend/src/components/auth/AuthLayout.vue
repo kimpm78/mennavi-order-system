@@ -5,12 +5,17 @@ defineProps<{
   lead: string
   panelLabel: string
   panelTitle: string
+  brandImage?: string
 }>()
 </script>
 
 <template>
   <main class="app-shell">
-    <section class="brand-panel" aria-label="Mennavi order system">
+    <section
+      class="brand-panel"
+      :style="brandImage ? { '--brand-image': `url('${brandImage}')` } : undefined"
+      aria-label="Mennavi order system"
+    >
       <div class="brand-copy">
         <p class="eyebrow">{{ eyebrow }}</p>
         <img class="brand-logo" src="/logo.svg" alt="麺ナビ" />

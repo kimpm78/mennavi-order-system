@@ -17,6 +17,7 @@ type SalesRow = {
 type KitchenBar = {
   label: string
   value: number
+  orderCount?: number
   max?: number
 }
 
@@ -216,7 +217,7 @@ const displayChangeRate = (value: string | number | null | undefined) => {
           >
             <div class="flex items-center justify-between gap-3 text-sm font-black">
               <span class="text-neutral-700">{{ bar.label }}</span>
-              <span class="text-red-700">{{ bar.value }}</span>
+              <span class="text-red-700">{{ bar.orderCount ?? 0 }}件 / {{ bar.value }}%</span>
             </div>
             <div class="h-3 overflow-hidden rounded-full bg-red-50">
               <div

@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -29,6 +30,7 @@ class User extends Authenticatable
         'address',
         'role',
         'status',
+        'point_balance',
         'last_login_at',
     ];
 
@@ -52,6 +54,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'point_balance' => 'integer',
             'password' => 'hashed',
             'deleted_at' => 'datetime',
         ];
@@ -65,5 +68,17 @@ class User extends Authenticatable
     public function paymentMethods(): HasMany
     {
         return $this->hasMany(UserPaymentMethod::class);
+    }
+
+    // ユーザーのサブスクリプション履歴を取得
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(UserSubscription::class);
+    }
+
+    // ユーザーの最新サブスクリプションを取得
+    public function latestSubscription(): HasOne
+    {
+        return $this->hasOne(UserSubscription::class)->latestOfMany();
     }
 }

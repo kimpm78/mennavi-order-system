@@ -103,7 +103,7 @@ class StoreApiTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('store.image_path', fn ($path) => is_string($path)
-                && preg_match('#^/storage/store/S\d{5}/\d{8}_\d{6}_[A-Za-z0-9]{8}\.jpg$#', $path) === 1);
+                && preg_match('#^/storage/store/'.$store->id.'_guan-li-dian-pu/\d{8}_\d{6}_[A-Za-z0-9]{8}\.jpg$#', $path) === 1);
 
         $store->refresh();
         $this->assertNotNull($store->image_path);

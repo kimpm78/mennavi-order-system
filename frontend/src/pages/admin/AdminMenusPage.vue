@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import FallbackImage from '@/components/common/FallbackImage.vue'
-import { Plus, SquarePen, Trash2 } from 'lucide-vue-next'
+import { Plus, SquarePen, Trash2, X } from 'lucide-vue-next'
 import type { AdminStoreRow, MenuRowView } from './adminTypes'
+
+const holidayOptions = ['月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日', '日曜日', '祝日']
 
 type StoreProfileForm = {
   name: string
   description: string
   address: string
+  phone: string
+  weekday_hours: string
+  weekend_hours: string
+  holidays: string[]
   budget_min: number | string | null
   budget_max: number | string | null
 }
@@ -27,6 +33,21 @@ const emit = defineEmits<{
   openProductModal: [menu?: MenuRowView]
   deleteMenu: [menu: MenuRowView]
 }>()
+
+const removeHoliday = (form: StoreProfileForm, holiday: string) => {
+  form.holidays = form.holidays.filter((selectedHoliday) => selectedHoliday !== holiday)
+}
+
+const addHoliday = (form: StoreProfileForm, event: Event) => {
+  const select = event.target as HTMLSelectElement
+  const holiday = select.value
+
+  if (holiday && !form.holidays.includes(holiday)) {
+    form.holidays = [...form.holidays, holiday]
+  }
+
+  select.value = ''
+}
 </script>
 
 <template>
@@ -74,6 +95,7 @@ const emit = defineEmits<{
         <!-- 店舗プロフィール -->
         <section class="overflow-hidden rounded-xl border border-red-200 bg-white p-6 shadow-sm">
           <h2 class="text-lg font-black tracking-normal">店舗プロフィール</h2>
+          <p class="mt-1 text-xs font-bold text-neutral-500">店舗画像はJPEG / PNG / WebP・5MBまで</p>
 
           <div class="relative mt-4 h-70 overflow-hidden rounded-lg bg-neutral-100">
             <FallbackImage
@@ -120,6 +142,76 @@ const emit = defineEmits<{
                 placeholder="東京都渋谷区神南 1-2-3"
               />
             </label>
+
+            <label class="grid gap-2 text-sm font-black text-[#5c4644]">
+              電話番号
+              <input
+                v-model="storeProfileForm.phone"
+                class="h-12 w-full min-w-0 rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-neutral-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50 disabled:bg-neutral-100 disabled:text-neutral-500"
+                maxlength="20"
+                placeholder="03-1234-5678"
+                type="tel"
+              />
+            </label>
+
+            <div class="grid gap-4 rounded-xl border border-red-100 bg-red-50/40 p-4">
+              <p class="text-sm font-black text-[#5c4644]">営業時間</p>
+
+              <label class="grid gap-2 text-sm font-black text-[#5c4644]">
+                平日
+                <textarea
+                  v-model="storeProfileForm.weekday_hours"
+                  class="min-h-20 w-full min-w-0 rounded-lg border border-red-200 bg-white px-4 py-3 text-sm font-bold leading-6 text-neutral-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50"
+                  placeholder="11:00-15:00&#10;17:00-22:00"
+                />
+              </label>
+
+              <label class="grid gap-2 text-sm font-black text-[#5c4644]">
+                土日祝
+                <input
+                  v-model="storeProfileForm.weekend_hours"
+                  class="h-12 w-full min-w-0 rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-neutral-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50"
+                  placeholder="11:00-22:00"
+                />
+              </label>
+
+              <div class="grid gap-2 text-sm font-black text-[#5c4644]">
+                休日
+                <select
+                  class="h-12 w-full rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-neutral-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50"
+                  @change="addHoliday(storeProfileForm, $event)"
+                >
+                  <option value="">休日を選択</option>
+                  <option
+                    v-for="holiday in holidayOptions"
+                    :key="holiday"
+                    :disabled="storeProfileForm.holidays.includes(holiday)"
+                    :value="holiday"
+                  >
+                    {{ holiday }}
+                  </option>
+                </select>
+                <div v-if="storeProfileForm.holidays.length" class="flex flex-wrap gap-2">
+                  <span
+                    v-for="holiday in storeProfileForm.holidays"
+                    :key="holiday"
+                    class="inline-flex items-center gap-2 rounded-full bg-red-700 px-3 py-1.5 text-xs font-black text-white"
+                  >
+                    {{ holiday }}
+                    <button
+                      type="button"
+                      class="grid h-5 w-5 place-items-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                      :aria-label="`${holiday}を解除`"
+                      @click="removeHoliday(storeProfileForm, holiday)"
+                    >
+                      <X class="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                </div>
+                <p v-else class="text-xs font-bold text-neutral-400">休日は未選択です。</p>
+                <p class="text-xs font-bold text-neutral-500">選択すると下に追加されます。複数登録できます。</p>
+              </div>
+            </div>
 
             <div class="grid gap-2 text-sm font-black text-[#5c4644]">
               予算

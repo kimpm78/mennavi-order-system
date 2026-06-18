@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import FallbackImage from '@/components/common/FallbackImage.vue'
 import { ImagePlus, Save, X } from 'lucide-vue-next'
 
 type ProductForm = {
@@ -9,6 +10,7 @@ type ProductForm = {
   category_id?: number | string | null
   category?: string | null
   image?: File | null
+  imageName?: string | null
   imagePath?: string | null
   image_path?: string | null
   isDisplay?: boolean
@@ -60,7 +62,7 @@ function syncSelectedCategory() {
 
 <template>
   <section class="fixed inset-0 z-50 grid place-items-center bg-black/40 px-4 py-6">
-    <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+    <div class="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
       <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-red-100 bg-white px-6 py-4">
         <div>
           <p class="text-sm font-bold text-red-600">メニュー管理</p>
@@ -80,7 +82,7 @@ function syncSelectedCategory() {
         </button>
       </div>
 
-      <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <!-- 商品入力フォーム -->
         <div class="grid min-w-0 gap-5">
           <label class="grid gap-2 text-sm font-black text-[#5c4644]">
@@ -144,13 +146,28 @@ function syncSelectedCategory() {
 
         <!-- 商品画像 -->
         <aside class="grid gap-4">
+          <div
+            v-if="productForm.imagePath || productForm.image_path"
+            class="h-36 overflow-hidden rounded-xl border border-red-100 bg-neutral-100"
+          >
+            <FallbackImage
+              class="h-full w-full object-cover"
+              :src="productForm.imagePath || productForm.image_path"
+              :alt="`${productForm.name || 'メニュー'}の画像プレビュー`"
+            />
+          </div>
+
           <label
             class="flex min-h-44 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-red-200 bg-red-50 px-4 py-6 text-center hover:bg-red-100/60"
           >
             <ImagePlus class="h-9 w-9 text-red-700" />
             <div>
-              <p class="text-sm font-black text-red-800">画像を選択</p>
-              <p class="mt-1 text-xs font-bold text-red-600">JPEG / PNG / WebP</p>
+              <p class="text-sm font-black text-red-800">
+                {{ productForm.image ? '画像を選択済み' : productForm.imagePath || productForm.image_path ? '画像を変更' : '画像を選択' }}
+              </p>
+              <p class="mt-1 max-w-56 truncate text-xs font-bold text-red-600">
+                {{ productForm.imageName || 'JPEG / PNG / WebP・5MBまで' }}
+              </p>
             </div>
             <input
               class="sr-only"

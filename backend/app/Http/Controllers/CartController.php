@@ -59,7 +59,7 @@ class CartController extends Controller
         $cartItem->quantity = ($cartItem->exists ? $cartItem->quantity : 0) + $validated['quantity'];
         $cartItem->save();
 
-        return response()->json($this->cartResponse($cart->fresh(['items.product'])), 201);
+        return response()->json($this->cartResponse($cart->fresh(['items.product.category'])), 201);
     }
 
     public function updateItem(Request $request, Product $product): JsonResponse
@@ -86,7 +86,7 @@ class CartController extends Controller
         $cartItem->forceFill(['quantity' => $validated['quantity']])->save();
         $cart->forceFill(['expires_at' => $this->freshExpiresAt()])->save();
 
-        return response()->json($this->cartResponse($cart->fresh(['items.product'])));
+        return response()->json($this->cartResponse($cart->fresh(['items.product.category'])));
     }
 
     public function removeItem(Request $request, Product $product): JsonResponse
@@ -108,7 +108,7 @@ class CartController extends Controller
             $cart->forceFill(['store_name' => null])->save();
         }
 
-        return response()->json($this->cartResponse($cart->fresh(['items.product'])));
+        return response()->json($this->cartResponse($cart->fresh(['items.product.category'])));
     }
 
     public function clear(Request $request): JsonResponse
@@ -145,7 +145,7 @@ class CartController extends Controller
 
     private function activeCart(User $user): ?Cart
     {
-        $cart = Cart::with('items.product')->where('user_id', $user->id)->first();
+        $cart = Cart::with('items.product.category')->where('user_id', $user->id)->first();
 
         if (! $cart) {
             return null;
@@ -184,6 +184,7 @@ class CartController extends Controller
                 'storeName' => $cart->store_name,
                 'menuItemId' => $item->product_id,
                 'name' => $item->product->name,
+                'category' => $item->product->category?->name,
                 'price' => $item->product->price,
                 'quantity' => $item->quantity,
             ])

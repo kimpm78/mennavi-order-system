@@ -1,5 +1,5 @@
-export type AdminPageKey = 'dashboard' | 'orders' | 'menus' | 'storeCreate' | 'sales' | 'settings'
-export type ActiveOrderFilterKey = 'all' | 'received' | 'cooking'
+export type AdminPageKey = 'dashboard' | 'orders' | 'contactMessages' | 'menus' | 'storeCreate' | 'sales' | 'settings'
+export type ActiveOrderFilterKey = 'all' | 'received' | 'cooking' | 'delivering'
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 export type AdminOrderRow = {
@@ -7,6 +7,7 @@ export type AdminOrderRow = {
   number?: string
   order_number?: string
   customer_name?: string | null
+  store_name?: string | null
   customer_phone?: string | null
   recipient_phone?: string | null
   shipping_address?: string | null
@@ -18,6 +19,10 @@ export type AdminOrderRow = {
   status: string
   order_status?: string | null
   payment_status?: string
+  receipt_type?: string
+  delivery_staff_name?: string | null
+  delivered_at?: string | null
+  received_at?: string | null
   total_amount?: number
   ordered_at?: string | null
   created_at?: string | null
@@ -42,6 +47,10 @@ export type AdminStoreRow = {
   name: string
   description?: string | null
   address?: string | null
+  phone?: string | null
+  weekday_hours?: string | null
+  weekend_hours?: string | null
+  holiday?: string | null
   image_path?: string | null
   budget_label?: string | null
   budget_min?: string | number | null
@@ -62,11 +71,31 @@ export type AdminSalesRow = {
   rate: string
 }
 
+export type AdminContactMessageRow = {
+  id: number
+  user_name?: string | null
+  name: string
+  email: string
+  category: string
+  order_number?: string | null
+  message: string
+  status: string
+  admin_note?: string | null
+  created_at?: string | null
+}
+
 export type AdminSettingRow = {
   label: string
   value: string
   category?: string | null
   description?: string | null
+}
+
+export type MainVisualSetting = {
+  id?: number | null
+  title: string
+  description?: string | null
+  image_path?: string | null
 }
 
 export type DashboardOrderView = AdminOrderRow & {
@@ -80,6 +109,8 @@ export type OrderActionTarget = {
   order_id?: number | string | null
   status?: string | null
   order_status?: string | null
+  receipt_type?: string | null
+  type?: string | null
 }
 
 export type MenuRowView = AdminProductRow & {

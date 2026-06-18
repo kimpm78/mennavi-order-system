@@ -1,21 +1,29 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ChevronLeft, ChevronRight, Heart, MapPinned, Star, Store, Trash2, X } from 'lucide-vue-next'
-import FallbackImage from '../../components/common/FallbackImage.vue'
-import AppFooter from '../../components/layout/AppFooter.vue'
-import AppHeader from '../../components/layout/AppHeader.vue'
-import { apiRequest, authHeaders } from '../../lib/api'
-import { getCustomerToken } from '../../lib/authStorage'
-import type { User } from '../../types/auth'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ArrowRight, ChevronLeft, ChevronRight, Crown, Heart, MapPinned, Star, Store, Trash2, X } from 'lucide-vue-next'
+import FallbackImage from '@/components/common/FallbackImage.vue'
+import AppFooter from '@/components/layout/AppFooter.vue'
+import AppHeader from '@/components/layout/AppHeader.vue'
+import { apiBaseUrl, apiRequest, authHeaders } from '@/lib/api'
+import { getCustomerToken } from '@/lib/authStorage'
+import type { User } from '@/types/auth'
+import AboutPage from './AboutPage.vue'
 import CheckoutPage from './CheckoutPage.vue'
+import ContactPage from './ContactPage.vue'
 import DeliveryInfoPage from './DeliveryInfoPage.vue'
+import FavoritePage from './FavoritePage.vue'
 import OrderCompletePage from './OrderCompletePage.vue'
 import OrderHistoryPage from './OrderHistoryPage.vue'
+import PrivacyPage from './PrivacyPage.vue'
 import StoreDetailPage from './StoreDetailPage.vue'
+import TermsPage from './TermsPage.vue'
+import PlusPage from './PlusPage.vue'
 
-defineProps<{
+const props = defineProps<{
   user: User
   loading?: boolean
+  currentPath: string
+  goTo: (path: string) => void
 }>()
 
 const emit = defineEmits<{
@@ -26,7 +34,20 @@ const emit = defineEmits<{
 const activeCategory = ref('すべて')
 const searchQuery = ref('')
 const selectedStore = ref<StoreSummary | null>(null)
-const currentView = ref<'home' | 'delivery' | 'orderHistory' | 'checkout' | 'orderComplete'>('home')
+const currentView = ref<
+  | 'home'
+  | 'favorite'
+  | 'plus'
+  | 'delivery'
+  | 'orderHistory'
+  | 'checkout'
+  | 'orderComplete'
+  | 'about'
+  | 'contact'
+  | 'terms'
+  | 'privacy'
+  >('home')
+
 const accountInitialSection = ref<'profile' | 'orders' | 'delivery'>('delivery')
 const cartItems = ref<CartItem[]>([])
 const cartExpiresAt = ref<string | null>(null)
@@ -35,6 +56,13 @@ const isCartOpen = ref(false)
 const pendingDifferentStoreItem = ref<CartItem | null>(null)
 const toastMessage = ref('')
 const nearbyScroller = ref<HTMLElement | null>(null)
+const favoriteStoreIds = ref<Set<number>>(new Set())
+const plusReturnPath = ref('/stores')
+const mainVisualSetting = ref<MainVisualSetting>({
+  title: '今日の一杯を見つけよう',
+  description: '厳選された究極のラーメン店ガイド。あなたの気分に合わせた最高の一杯をご提案します。',
+  image_path: null,
+})
 let cartResetTimer: number | undefined
 let cartClockTimer: number | undefined
 let toastTimer: number | undefined
@@ -46,11 +74,37 @@ type StoreSummary = {
   tags?: string[]
   description?: string
   budget?: string
+  weekdayHours?: string | null
+  weekendHours?: string | null
+  holiday?: string | null
+  phone?: string | null
   rating: string
   reviews?: string
+  orderCount?: number
+  reviewItems?: StoreReview[]
   imagePath?: string | null
   imageClass: string
   products?: MenuItem[]
+}
+
+type StoreReview = {
+  id: number
+  rating: number
+  content?: string | null
+  userName?: string | null
+  createdAt?: string | null
+}
+
+type MainVisualSetting = {
+  title: string
+  description?: string | null
+  image_path?: string | null
+}
+
+type UserSubscription = {
+  status?: string
+  current_period_end?: string | null
+  cancel_at_period_end?: boolean
 }
 
 type MenuItem = {
@@ -69,6 +123,7 @@ type CartItem = {
   storeName: string
   menuItemId: number
   name: string
+  category?: string
   price: number
   quantity: number
 }
@@ -96,10 +151,23 @@ const filteredRecommendedStores = computed(() =>
   stores.value.filter((store) => matchesCategory(store) && matchesSearch(store, normalizedSearchQuery.value)),
 )
 const filteredNearbyStores = computed(() =>
-  stores.value.filter((store) => matchesCategory(store) && matchesSearch(store, normalizedSearchQuery.value)),
+  stores.value
+    .filter((store) => matchesCategory(store) && matchesSearch(store, normalizedSearchQuery.value))
+    .sort(compareStoreRanking),
 )
-const totalSearchResults = computed(
-  () => filteredRecommendedStores.value.length + filteredNearbyStores.value.length,
+const filteredFavoriteStores = computed(() =>
+  stores.value.filter((store) =>
+    favoriteStoreIds.value.has(store.id) &&
+    matchesCategory(store) &&
+    matchesSearch(store, normalizedSearchQuery.value),
+  ),
+)
+const totalSearchResults = computed(() =>
+  new Set([
+    ...filteredRecommendedStores.value,
+    ...filteredNearbyStores.value,
+    ...filteredFavoriteStores.value,
+  ].map((store) => store.id)).size,
 )
 const isSearching = computed(() => normalizedSearchQuery.value.length > 0)
 const isFiltering = computed(() => activeCategory.value !== 'すべて')
@@ -109,6 +177,10 @@ const cartItemCount = computed(() =>
 const cartTotal = computed(() =>
   cartItems.value.reduce((total, item) => total + item.price * item.quantity, 0),
 )
+const hasMainMenuInCart = computed(() =>
+  cartItems.value.some((item) => item.category === 'メイン'),
+)
+const canProceedToCheckout = computed(() => cartItems.value.length > 0 && hasMainMenuInCart.value)
 const cartRemainingMs = computed(() => {
   if (!cartExpiresAt.value) {
     return 0
@@ -127,6 +199,48 @@ const cartRemainingText = computed(() => {
 
   return `残り${minutes}:${seconds.toString().padStart(2, '0')}`
 })
+const userSubscription = ref<UserSubscription | null>(null)
+const isPlusMember = computed(() => {
+  if (userSubscription.value?.status !== 'active') {
+    return false
+  }
+
+  if (!userSubscription.value.current_period_end) {
+    return true
+  }
+
+  return new Date(userSubscription.value.current_period_end).getTime() > Date.now()
+})
+const mainVisualHeroStyle = computed(() => {
+  const imagePath = mainVisualSetting.value.image_path
+
+  if (!imagePath) {
+    return {}
+  }
+
+  return {
+    backgroundImage: `linear-gradient(90deg, rgba(17, 17, 17, 0.72), rgba(17, 17, 17, 0.34)), url("${resolveImageUrl(imagePath)}")`,
+  }
+})
+const topPopularStoreId = computed(() => {
+  const [topStore] = [...stores.value].sort(compareStorePopularity)
+  const hasPopularity = topStore && (getOrderCount(topStore) > 0 || getReviewCount(topStore) > 0)
+
+  return hasPopularity ? topStore.id : null
+})
+const headerActiveNav = computed(() => {
+  if (currentView.value === 'favorite') {
+    return 'favorites'
+  }
+
+  return currentView.value === 'home' ? 'stores' : ''
+})
+const storeDetailBackLabel = computed(() =>
+  currentView.value === 'favorite' ? 'お気に入りへ戻る' : '店舗一覧へ戻る',
+)
+const storeDetailActiveNav = computed(() =>
+  currentView.value === 'favorite' ? 'favorites' : 'stores',
+)
 
 onMounted(() => {
   cartClockTimer = window.setInterval(() => {
@@ -134,6 +248,14 @@ onMounted(() => {
   }, 1000)
   loadCart()
   loadStores()
+  loadFavoriteStores()
+  loadMainVisualSetting()
+  loadUserSubscription()
+  syncPathToView(props.currentPath)
+})
+
+watch(() => props.currentPath, (path) => {
+  syncPathToView(path)
 })
 
 onBeforeUnmount(() => {
@@ -171,11 +293,11 @@ function matchesCategory(store: StoreSummary) {
   }
 
   if (activeCategory.value === '人気店') {
-    return getReviewCount(store) >= 1000 || getStoreSearchText(store).includes('人気')
+    return store.id === topPopularStoreId.value
   }
 
   if (activeCategory.value === '高評価') {
-    return Number.parseFloat(store.rating) >= 4.7 || getStoreSearchText(store).includes('高評価')
+    return Number.parseFloat(store.rating) >= 4.0 || getStoreSearchText(store).includes('高評価')
   }
 
   const categoryKeyword = activeCategory.value.replace('が人気', '')
@@ -185,6 +307,42 @@ function matchesCategory(store: StoreSummary) {
 
 function getReviewCount(store: StoreSummary) {
   return Number.parseInt((store.reviews ?? '0').replace(/,/g, ''), 10) || 0
+}
+
+function getOrderCount(store: StoreSummary) {
+  return store.orderCount ?? 0
+}
+
+function compareStoreRanking(left: StoreSummary, right: StoreSummary) {
+  const ratingDiff = Number.parseFloat(right.rating) - Number.parseFloat(left.rating)
+
+  if (ratingDiff !== 0) {
+    return ratingDiff
+  }
+
+  const orderDiff = getOrderCount(right) - getOrderCount(left)
+
+  if (orderDiff !== 0) {
+    return orderDiff
+  }
+
+  return getReviewCount(right) - getReviewCount(left)
+}
+
+function compareStorePopularity(left: StoreSummary, right: StoreSummary) {
+  const orderDiff = getOrderCount(right) - getOrderCount(left)
+
+  if (orderDiff !== 0) {
+    return orderDiff
+  }
+
+  const reviewDiff = getReviewCount(right) - getReviewCount(left)
+
+  if (reviewDiff !== 0) {
+    return reviewDiff
+  }
+
+  return Number.parseFloat(right.rating) - Number.parseFloat(left.rating)
 }
 
 function getStoreSearchText(store: StoreSummary) {
@@ -211,6 +369,61 @@ async function loadStores() {
   } catch {
     stores.value = []
   }
+}
+
+async function loadFavoriteStores() {
+  const token = getCustomerToken()
+  if (!token) {
+    favoriteStoreIds.value = new Set()
+    return
+  }
+
+  try {
+    const response = await apiRequest<{ store_ids: number[] }>('/favorite-stores', {
+      headers: authHeaders(token),
+    })
+    favoriteStoreIds.value = new Set(response.store_ids)
+  } catch {
+    favoriteStoreIds.value = new Set()
+  }
+}
+
+async function loadMainVisualSetting() {
+  try {
+    const response = await apiRequest<{ main_visual_setting: MainVisualSetting }>('/main-visual-setting')
+    mainVisualSetting.value = response.main_visual_setting
+  } catch {
+    mainVisualSetting.value = {
+      title: '今日の一杯を見つけよう',
+      description: '厳選された究極のラーメン店ガイド。あなたの気分に合わせた最高の一杯をご提案します。',
+      image_path: null,
+    }
+  }
+}
+
+async function loadUserSubscription() {
+  const token = getCustomerToken()
+  if (!token) {
+    userSubscription.value = null
+    return
+  }
+
+  try {
+    const response = await apiRequest<{ subscription: UserSubscription | null }>('/me/subscription', {
+      headers: authHeaders(token),
+    })
+    userSubscription.value = response.subscription
+  } catch {
+    userSubscription.value = null
+  }
+}
+
+function resolveImageUrl(path: string) {
+  if (path.startsWith('/storage/')) {
+    return `${apiBaseUrl.replace(/\/api\/?$/, '')}${path}`
+  }
+
+  return path
 }
 
 function selectCategory(category: string) {
@@ -243,32 +456,81 @@ function openAccountSection(section: 'profile' | 'orders' | 'delivery') {
   selectedStore.value = null
 
   if (section === 'orders') {
-    currentView.value = 'orderHistory'
-    window.scrollTo({ top: 0 })
+    goTo('/orders')
     return
   }
 
   accountInitialSection.value = section
-  currentView.value = 'delivery'
-  window.scrollTo({ top: 0 })
+  goTo(section === 'profile' ? '/profile' : '/delivery')
 }
 
 function closeDeliveryInfo() {
-  currentView.value = 'home'
-  window.scrollTo({ top: 0 })
+  goTo('/stores')
+}
+
+function openFavorites() {
+  goTo('/favorites')
 }
 
 function openOrderHistory() {
-  selectedStore.value = null
-  isCartOpen.value = false
-  currentView.value = 'orderHistory'
-  window.scrollTo({ top: 0 })
+  goTo('/orders')
 }
 
 function openTop() {
+  goTo('/stores')
+}
+
+function openPlus(returnPath = '/stores') {
+  plusReturnPath.value = returnPath
+  goTo('/plus')
+}
+
+function goTo(path: string) {
+  props.goTo(path)
+  syncPathToView(path)
+}
+
+function syncPathToView(path: string) {
   selectedStore.value = null
   isCartOpen.value = false
-  currentView.value = 'home'
+
+  const pageMap: Record<string, typeof currentView.value> = {
+    '/about': 'about',
+    '/contact': 'contact',
+    '/checkout': 'checkout',
+    '/favorites': 'favorite',
+    '/plus': 'plus',
+    '/order-complete': 'orderComplete',
+    '/orders': 'orderHistory',
+    '/terms': 'terms',
+    '/privacy': 'privacy',
+  }
+
+  if (path === '/profile' || path === '/delivery') {
+    accountInitialSection.value = path === '/profile' ? 'profile' : 'delivery'
+    currentView.value = 'delivery'
+    window.scrollTo({ top: 0 })
+    return
+  }
+
+  if (path === '/ranking') {
+    currentView.value = 'home'
+    nextTick(() => {
+      document.getElementById('nearby')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return
+  }
+
+
+  if (path === '/stores' || path === '/login') {
+    currentView.value = 'home'
+    nextTick(() => {
+      document.getElementById('stores')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return
+  }
+
+  currentView.value = pageMap[path] ?? 'home'
   window.scrollTo({ top: 0 })
 }
 
@@ -364,34 +626,68 @@ function closeCart() {
 function logout() {
   cartItems.value = []
   cartExpiresAt.value = null
+  favoriteStoreIds.value = new Set()
+  userSubscription.value = null
   isCartOpen.value = false
   emit('logout')
 }
 
+function updateUserSubscription(subscription: UserSubscription | null) {
+  userSubscription.value = subscription
+}
+
 function openCheckout() {
-  selectedStore.value = null
-  isCartOpen.value = false
-  currentView.value = 'checkout'
-  window.scrollTo({ top: 0 })
+  if (!hasMainMenuInCart.value) {
+    showCartToast('注文にはメインメニューを1点以上追加してください。')
+    return
+  }
+
+  props.goTo('/checkout')
+  syncPathToView('/checkout')
 }
 
 function openDeliveryInfoFromCheckout() {
   selectedStore.value = null
   isCartOpen.value = false
   accountInitialSection.value = 'delivery'
-  currentView.value = 'delivery'
-  window.scrollTo({ top: 0 })
+  goTo('/delivery')
 }
 
 function completeOrder() {
   cartItems.value = []
   cartExpiresAt.value = null
+  props.goTo('/order-complete')
   currentView.value = 'orderComplete'
   window.scrollTo({ top: 0 })
 }
 
 function formatPrice(price: number) {
   return `${price.toLocaleString('ja-JP')}円`
+}
+
+function isFavoriteStore(store: StoreSummary) {
+  return favoriteStoreIds.value.has(store.id)
+}
+
+async function toggleFavoriteStore(store: StoreSummary) {
+  const token = getCustomerToken()
+  if (!token) {
+    showCartToast('ログインするとお気に入りを利用できます。')
+    return
+  }
+
+  const isFavorite = isFavoriteStore(store)
+
+  try {
+    const response = await apiRequest<{ store_ids: number[] }>(`/favorite-stores/${store.id}`, {
+      method: isFavorite ? 'DELETE' : 'POST',
+      headers: authHeaders(token),
+    })
+    favoriteStoreIds.value = new Set(response.store_ids)
+    showCartToast(isFavorite ? `${store.name}をお気に入りから解除しました` : `${store.name}をお気に入りに追加しました`)
+  } catch (error) {
+    showCartToast(error instanceof Error ? error.message : 'お気に入りの更新に失敗しました。')
+  }
 }
 
 async function loadCart() {
@@ -470,7 +766,11 @@ function showCartToast(message: string) {
       v-if="selectedStore"
       :store="selectedStore"
       :cart-count="cartItemCount"
+      :cart-remaining-text="cartRemainingText"
+      :back-label="storeDetailBackLabel"
+      :active-nav="storeDetailActiveNav"
       @back="closeStoreDetail"
+      @navigate-page="goTo"
       @open-cart="openCart"
       @open-account-section="openAccountSection"
       @add-cart="addCartItem"
@@ -481,10 +781,14 @@ function showCartToast(message: string) {
     <AppHeader
       v-model:search-query="searchQuery"
       :is-authenticated="true"
+      :is-plus-member="isPlusMember"
       :cart-count="cartItemCount"
+      :active-nav="headerActiveNav"
       @open-cart="openCart"
       @open-account-section="openAccountSection"
       @brand-click="closeDeliveryInfo"
+      @stores-click="goTo('/stores')"
+      @favorites-click="openFavorites"
       @logout="logout"
     />
 
@@ -509,13 +813,32 @@ function showCartToast(message: string) {
       v-if="currentView === 'delivery'"
       :user="user"
       :initial-section="accountInitialSection"
+      :subscription="userSubscription"
       @back="closeDeliveryInfo"
       @updated="updateUser"
       @open-order-history="openOrderHistory"
+      @open-plus="openPlus('/profile')"
       @logout="logout"
     />
 
-    <OrderHistoryPage v-else-if="currentView === 'orderHistory'" />
+    <FavoritePage
+      v-else-if="currentView === 'favorite'"
+      :stores="filteredFavoriteStores"
+      @back="goTo('/stores')"
+      @open-store="openStoreDetail"
+      @toggle-favorite="toggleFavoriteStore"
+    />
+
+    <PlusPage
+      v-else-if="currentView === 'plus'"
+      @back="goTo(plusReturnPath)"
+      @subscription-updated="updateUserSubscription"
+    />
+
+    <OrderHistoryPage
+      v-else-if="currentView === 'orderHistory'"
+      @open-plus="openPlus('/orders')"
+    />
 
     <OrderCompletePage
       v-else-if="currentView === 'orderComplete'"
@@ -523,12 +846,33 @@ function showCartToast(message: string) {
       @order-history="openOrderHistory"
     />
 
+    <AboutPage
+      v-else-if="currentView === 'about'"
+      :go-to="goTo"
+    />
+
+    <ContactPage
+      v-else-if="currentView === 'contact'"
+      :go-to="goTo"
+    />
+
+    <TermsPage
+      v-else-if="currentView === 'terms'"
+      :go-to="goTo"
+    />
+
+    <PrivacyPage
+      v-else-if="currentView === 'privacy'"
+      :go-to="goTo"
+    />
+
     <CheckoutPage
       v-else-if="currentView === 'checkout'"
       :cart-items="cartItems"
       :cart-total="cartTotal"
       :user="user"
-      @back="currentView = 'home'"
+      :subscription="userSubscription"
+      @back="goTo('/stores')"
       @completed="completeOrder"
       @open-delivery-info="openDeliveryInfoFromCheckout"
       @update-quantity="updateCartItemQuantity($event.item, $event.amount, false)"
@@ -536,25 +880,33 @@ function showCartToast(message: string) {
     />
 
     <main v-else class="mx-auto w-full max-w-7xl px-5 py-6 md:px-8">
-      <section class="ramen-hero overflow-hidden rounded-lg px-6 py-16 text-white md:px-10 md:py-24">
+      <section
+        class="ramen-hero overflow-hidden rounded-lg px-6 py-16 text-white md:px-10 md:py-24"
+        :style="mainVisualHeroStyle"
+      >
         <div class="max-w-xl">
           <p class="mb-3 text-sm font-black text-white/80">ようこそ、{{ user.name }}さん</p>
           <h1 class="text-4xl font-black leading-tight tracking-normal md:text-5xl">
-            今日の一杯を見つけよう
+            {{ mainVisualSetting.title }}
           </h1>
           <p class="mt-6 text-base font-bold leading-8 text-white/90 md:text-lg">
-            厳選された究極のラーメン店ガイド。あなたの気分に合わせた最高の一杯をご提案します。
+            {{ mainVisualSetting.description }}
           </p>
           <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-            <a class="rounded-md bg-red-700 px-8 py-4 text-center text-sm font-black text-white hover:bg-red-800" href="#stores">
+            <button
+              class="rounded-md bg-red-700 px-8 py-4 text-center text-sm font-black text-white hover:bg-red-800"
+              type="button"
+              @click="goTo('/stores')"
+            >
               今すぐ探す
-            </a>
-            <a
+            </button>
+            <button
               class="rounded-md border border-white/45 bg-white/10 px-8 py-4 text-center text-sm font-black text-white backdrop-blur hover:bg-white/20"
-              href="#nearby"
+              type="button"
+              @click="goTo('/ranking')"
             >
               ランキングを見る
-            </a>
+            </button>
           </div>
         </div>
       </section>
@@ -590,15 +942,21 @@ function showCartToast(message: string) {
               の表示結果: {{ totalSearchResults }}件
             </p>
           </div>
-          <button
+          <a
             v-if="isSearching || isFiltering"
-            class="text-sm font-black text-red-700 hover:text-red-800"
-            type="button"
+            class="text-sm font-black cursor-pointer text-red-700 hover:text-red-800"
             @click="searchQuery = ''; activeCategory = 'すべて'"
           >
             条件をクリア
+          </a>
+          <button
+            v-else
+            class="text-sm font-black text-red-700 hover:text-red-800"
+            type="button"
+            @click="searchQuery = ''; activeCategory = 'すべて'; goTo('/stores')"
+          >
+            すべて表示
           </button>
-          <a v-else class="text-sm font-black text-red-700 hover:text-red-800" href="#">すべて表示</a>
         </div>
 
         <div v-if="filteredRecommendedStores.length" class="grid gap-6 lg:grid-cols-3">
@@ -616,7 +974,7 @@ function showCartToast(message: string) {
               <FallbackImage :src="store.imagePath" :alt="`${store.name}の画像`" />
               <span class="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm font-black text-red-700 shadow-sm">
                 <Star class="h-4 w-4 fill-current" aria-hidden="true" />
-                {{ store.rating }}
+                {{ getReviewCount(store) > 0 ? store.rating : 'レビューなし' }}
               </span>
             </div>
             <div class="p-5">
@@ -636,12 +994,13 @@ function showCartToast(message: string) {
               <div class="mt-5 flex items-center justify-between border-t border-neutral-100 pt-4">
                 <span class="text-sm font-black text-neutral-600">{{ store.budget }}</span>
                 <button
-                  class="grid h-9 w-9 place-items-center rounded-full text-neutral-500 hover:bg-red-50 hover:text-red-700"
+                  class="grid h-9 w-9 place-items-center rounded-full transition hover:bg-red-50"
+                  :class="isFavoriteStore(store) ? 'text-red-700' : 'text-neutral-500 hover:text-red-700'"
                   type="button"
-                  aria-label="お気に入り"
-                  @click.stop
+                  :aria-label="isFavoriteStore(store) ? 'お気に入りを解除' : 'お気に入りに追加'"
+                  @click.stop="toggleFavoriteStore(store)"
                 >
-                  <Heart class="h-5 w-5" aria-hidden="true" />
+                  <Heart class="h-5 w-5" :class="isFavoriteStore(store) ? 'fill-current' : ''" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -657,12 +1016,18 @@ function showCartToast(message: string) {
         </div>
       </section>
 
+
       <section id="nearby" class="mt-12 rounded-lg bg-white px-5 py-8 shadow-sm md:px-7">
         <div class="mb-7 flex items-center justify-between">
-          <h2 class="flex items-center gap-2 text-3xl font-black tracking-normal">
-            <MapPinned class="h-7 w-7 text-red-700" />
-            近くの人気店
-          </h2>
+          <div>
+            <h2 class="flex items-center gap-2 text-3xl font-black tracking-normal">
+              <MapPinned class="h-7 w-7 text-red-700" />
+              店舗ランキング
+            </h2>
+            <p class="mt-2 text-sm font-bold text-neutral-500">
+              レビュー評価、注文数、レビュー数をもとに表示しています。
+            </p>
+          </div>
           <div class="hidden gap-2 md:flex">
             <button
               class="grid h-9 w-9 place-items-center rounded-full border border-neutral-200 text-neutral-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
@@ -689,7 +1054,7 @@ function showCartToast(message: string) {
           class="flex snap-x gap-5 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <article
-            v-for="store in filteredNearbyStores"
+            v-for="(store, index) in filteredNearbyStores"
             :key="store.name"
             class="w-64 shrink-0 snap-start rounded-md border border-neutral-200 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md sm:w-72 lg:w-80"
             role="button"
@@ -698,14 +1063,22 @@ function showCartToast(message: string) {
             @keydown.enter.prevent="openStoreDetail(store)"
             @keydown.space.prevent="openStoreDetail(store)"
           >
-            <div class="h-32 overflow-hidden rounded-md bg-neutral-100">
+            <div class="relative h-32 overflow-hidden rounded-md bg-neutral-100">
               <FallbackImage :src="store.imagePath" :alt="`${store.name}の画像`" />
+              <span class="absolute left-3 top-3 rounded-full bg-red-700 px-3 py-1 text-xs font-black text-white shadow-sm">
+                No.{{ index + 1 }}
+              </span>
             </div>
             <div class="px-2 py-3">
               <h3 class="font-black tracking-normal">{{ store.name }}</h3>
               <p class="mt-1 inline-flex items-center gap-1 text-sm font-bold text-neutral-600">
                 <Star class="h-4 w-4 fill-current text-yellow-500" aria-hidden="true" />
-                <span>{{ store.rating }} ({{ store.reviews }} 件のレビュー)</span>
+                <span>
+                  {{ getReviewCount(store) > 0 ? store.rating : 'レビューなし' }}
+                </span>
+              </p>
+              <p class="mt-2 text-xs font-black text-neutral-500">
+                注文 {{ getOrderCount(store).toLocaleString('ja-JP') }}件 / レビュー {{ store.reviews }}件
               </p>
             </div>
           </article>
@@ -718,9 +1091,34 @@ function showCartToast(message: string) {
           <p class="font-black text-neutral-800">該当する人気店がありません</p>
         </div>
       </section>
+
+      <section class="mt-12 overflow-hidden rounded-lg bg-red-700 px-6 py-7 text-white shadow-sm md:px-8">
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div class="flex items-start gap-4">
+            <div class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-white/15">
+              <Crown class="h-6 w-6" aria-hidden="true" />
+            </div>
+            <div>
+              <p class="text-xl font-black tracking-normal">麺ナビ Plus</p>
+              <p class="mt-2 max-w-2xl text-sm font-bold leading-7 text-red-50">
+                全店舗で使える送料無料特典と、ご注文ごとに15%割引をご利用いただけます。
+              </p>
+            </div>
+          </div>
+
+          <button
+            class="inline-flex h-12 w-fit shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-black text-red-700 transition hover:bg-red-50"
+            type="button"
+            @click="openPlus('/stores')"
+          >
+            今すぐアップグレード
+            <ArrowRight class="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </section>
     </main>
 
-    <AppFooter />
+    <AppFooter :go-to="goTo" />
     </template>
 
     <div
@@ -815,7 +1213,9 @@ function showCartToast(message: string) {
             <div>
               <p class="text-xs font-black text-red-700">{{ item.storeName }}</p>
               <h3 class="mt-1 font-black tracking-normal">{{ item.name }}</h3>
-              <p class="mt-1 text-sm font-bold text-neutral-500">{{ formatPrice(item.price) }}</p>
+              <p class="mt-1 text-sm font-bold text-neutral-500">
+                <span v-if="item.category">{{ item.category }} ・ </span>{{ formatPrice(item.price) }}
+              </p>
             </div>
             <button
               class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-neutral-500 hover:bg-red-50 hover:text-red-700"
@@ -874,12 +1274,18 @@ function showCartToast(message: string) {
           <button
             class="rounded-full bg-red-700 px-5 py-3 text-sm font-black text-white hover:bg-red-800 disabled:opacity-40"
             type="button"
-            :disabled="!cartItems.length"
+            :disabled="!canProceedToCheckout"
             @click="openCheckout"
           >
             注文へ進む
           </button>
         </div>
+        <p
+          v-if="cartItems.length && !hasMainMenuInCart"
+          class="mt-3 rounded-lg bg-red-50 px-4 py-3 text-xs font-black leading-5 text-red-700"
+        >
+          サイドメニュー、ドリンク & お酒のみでは注文できません。メインメニューを1点以上追加してください。
+        </p>
       </div>
     </aside>
 

@@ -4,14 +4,18 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps<{
   isAuthenticated?: boolean
+  isPlusMember?: boolean
   cartCount?: number
   searchQuery?: string
+  activeNav?: 'stores' | 'favorites' | ''
 }>()
 
 const emit = defineEmits<{
   logout: []
   openCart: []
   brandClick: []
+  storesClick: []
+  favoritesClick: []
   openAccountSection: [section: 'profile' | 'orders' | 'delivery']
   'update:searchQuery': [value: string]
 }>()
@@ -58,6 +62,16 @@ function handleBrandClick(event: MouseEvent) {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+function handleStoresClick(event: MouseEvent) {
+  event.preventDefault()
+  emit('storesClick')
+}
+
+function handleFavoritesClick(event: MouseEvent) {
+  event.preventDefault()
+  emit('favoritesClick')
+}
+
 function updateSearch(event: Event) {
   emit('update:searchQuery', (event.target as HTMLInputElement).value)
 }
@@ -85,10 +99,28 @@ function openAccountSection(section: 'profile' | 'orders' | 'delivery') {
 
       <nav class="hidden h-16 items-center md:flex">
         <a
-          class="flex h-full items-center border-b-2 border-red-700 px-6 text-sm font-black text-red-700"
+          :class="[
+            'flex h-full items-center border-b-2 px-6 text-sm font-black transition',
+            props.activeNav === 'stores'
+              ? 'border-red-700 text-red-700'
+              : 'border-transparent text-neutral-600 hover:border-red-200 hover:text-red-700',
+          ]"
           href="#stores"
+          @click="handleStoresClick"
         >
           店舗一覧
+        </a>
+        <a
+          :class="[
+            'flex h-full items-center border-b-2 px-6 text-sm font-black transition',
+            props.activeNav === 'favorites'
+              ? 'border-red-700 text-red-700'
+              : 'border-transparent text-neutral-600 hover:border-red-200 hover:text-red-700',
+          ]"
+          href="#favorites"
+          @click="handleFavoritesClick"
+        >
+          お気に入り
         </a>
       </nav>
 
@@ -122,15 +154,24 @@ function openAccountSection(section: 'profile' | 'orders' | 'delivery') {
         </button>
 
         <div v-if="isAuthenticated" class="relative">
-          <button
-            class="grid h-11 w-11 place-items-center rounded-full text-neutral-700 transition hover:bg-neutral-100"
-            type="button"
-            aria-label="プロフィール"
-            :aria-expanded="isProfileMenuOpen"
-            @click="toggleProfileMenu"
-          >
-            <CircleUserRound class="h-7 w-7" :stroke-width="2.1" />
-          </button>
+          <div class="relative">
+            <button
+              class="relative grid h-11 w-11 place-items-center rounded-full text-neutral-700 transition hover:bg-neutral-100"
+              type="button"
+              aria-label="プロフィール"
+              :aria-expanded="isProfileMenuOpen"
+              @click="toggleProfileMenu"
+            >
+              <CircleUserRound class="h-7 w-7" :stroke-width="2.1" />
+              <span
+                v-if="props.isPlusMember"
+                class="absolute bottom-0 right-0 text-sm font-black leading-none text-red-700"
+                aria-label="Plus会員"
+              >
+                +
+              </span>
+            </button>
+          </div>
 
           <div
             v-if="isProfileMenuOpen"

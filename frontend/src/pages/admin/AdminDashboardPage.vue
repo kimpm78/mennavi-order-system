@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import {
   Clock3,
   CreditCard,
@@ -34,6 +35,7 @@ type AdminOrder = {
   ordered_at?: string | null
   created_at?: string | null
   elapsed_minutes?: number | null
+  receipt_type?: string | null
 }
 
 type ActiveOrderFilterItem = {
@@ -44,6 +46,7 @@ type ActiveOrderFilterItem = {
 type KitchenBar = {
   label: string
   value: number
+  orderCount?: number
   max?: number
 }
 
@@ -74,8 +77,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   updateActiveOrderFilter: [filter: string]
-  updateOrderStatus: [order: AdminOrder]
+  updateOrderStatus: [order: AdminOrder, deliveryStaffName?: string]
 }>()
+
+const deliveryStaffNames = ['佐藤A', '鈴木B']
+const deliveryTargetOrder = ref<AdminOrder | null>(null)
+const selectedDeliveryStaffName = ref(deliveryStaffNames[0])
 
 const summaryIconMap = {
   orders: ShoppingBag,
@@ -108,6 +115,34 @@ const orderStatusValue = (order: AdminOrder) => {
 
 const orderElapsedValue = (order: AdminOrder) => {
   return order.elapsed_minutes ?? 0
+}
+
+const openDeliveryStaffModal = (order: AdminOrder) => {
+  selectedDeliveryStaffName.value = deliveryStaffNames[0]
+  deliveryTargetOrder.value = order
+}
+
+const closeDeliveryStaffModal = () => {
+  deliveryTargetOrder.value = null
+  selectedDeliveryStaffName.value = deliveryStaffNames[0]
+}
+
+const requestOrderStatusUpdate = (order: AdminOrder) => {
+  if (props.nextOrderStatus(order) === 'delivering') {
+    openDeliveryStaffModal(order)
+    return
+  }
+
+  emit('updateOrderStatus', order)
+}
+
+const confirmDeliveryStart = () => {
+  if (!deliveryTargetOrder.value) {
+    return
+  }
+
+  emit('updateOrderStatus', deliveryTargetOrder.value, selectedDeliveryStaffName.value)
+  closeDeliveryStaffModal()
 }
 </script>
 
@@ -208,7 +243,7 @@ const orderElapsedValue = (order: AdminOrder) => {
               class="h-10 rounded-lg bg-red-700 px-4 text-sm font-black text-white hover:bg-red-800 disabled:opacity-50"
               type="button"
               :disabled="adminPageLoading || !nextOrderStatus(order)"
-              @click="emit('updateOrderStatus', order)"
+              @click="requestOrderStatusUpdate(order)"
             >
               {{ orderActionLabel(order) }}
             </button>
@@ -255,7 +290,7 @@ const orderElapsedValue = (order: AdminOrder) => {
           >
             <div class="flex items-center justify-between gap-3 text-sm font-black">
               <span class="text-neutral-700">{{ bar.label }}</span>
-              <span class="text-red-700">{{ bar.value }}%</span>
+              <span class="text-red-700">{{ bar.orderCount ?? 0 }}件 / {{ bar.value }}%</span>
             </div>
             <div class="h-3 overflow-hidden rounded-full bg-red-50">
               <div
@@ -267,5 +302,51 @@ const orderElapsedValue = (order: AdminOrder) => {
         </div>
       </section>
     </section>
+
+    <div
+      v-if="deliveryTargetOrder"
+      class="fixed inset-0 z-50 grid place-items-center bg-black/40 px-4"
+      @click.self="closeDeliveryStaffModal"
+    >
+      <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div>
+          <p class="text-sm font-black text-red-700">配送開始</p>
+          <h2 class="mt-1 text-xl font-black text-neutral-900">配送担当を選択</h2>
+          <p class="mt-2 text-sm font-bold text-neutral-500">
+            注文番号 #{{ deliveryTargetOrder.order_number || deliveryTargetOrder.order_id }} を配送中に変更します。
+          </p>
+        </div>
+
+        <label class="mt-5 grid gap-2 text-sm font-black text-neutral-700">
+          配送担当
+          <select
+            v-model="selectedDeliveryStaffName"
+            class="h-12 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-neutral-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+          >
+            <option v-for="staff in deliveryStaffNames" :key="staff" :value="staff">
+              {{ staff }}
+            </option>
+          </select>
+        </label>
+
+        <div class="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            class="h-11 rounded-xl border border-neutral-200 px-5 text-sm font-black text-neutral-600 hover:bg-neutral-50"
+            @click="closeDeliveryStaffModal"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            class="h-11 rounded-xl bg-red-700 px-5 text-sm font-black text-white hover:bg-red-800 disabled:opacity-50"
+            :disabled="adminPageLoading"
+            @click="confirmDeliveryStart"
+          >
+            配送中にする
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
