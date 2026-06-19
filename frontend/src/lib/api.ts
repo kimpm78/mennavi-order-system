@@ -1,4 +1,8 @@
-export const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api'
+const configuredApiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
+export const apiBaseUrl = configuredApiBaseUrl || 'http://127.0.0.1:8000/api'
+
+console.info('[Mennavi API URL]', apiBaseUrl)
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {

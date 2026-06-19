@@ -32,6 +32,8 @@ const emit = defineEmits<{
 
 const isProfileMenuOpen = ref(false)
 const isNotificationMenuOpen = ref(false)
+const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, '')
+const loginHref = `${appBasePath}/login`
 
 onMounted(() => {
   window.addEventListener('click', closeFloatingMenus)
@@ -132,7 +134,7 @@ function notificationToneClass(tone: UserOrderNotification['tone']) {
     <div class="mx-auto flex min-h-16 w-full max-w-7xl items-center gap-5 px-5 md:px-8">
       <a
         class="shrink-0 text-2xl font-black tracking-normal text-red-700"
-        href="/login"
+        :href="loginHref"
         @click="handleBrandClick"
       >
         麺ナビ
@@ -321,7 +323,7 @@ function notificationToneClass(tone: UserOrderNotification['tone']) {
         <a
           v-else
           class="rounded-full bg-red-700 px-5 py-2 text-sm font-black text-white transition hover:bg-red-800"
-          href="/login"
+          :href="loginHref"
         >
           ログイン
         </a>
