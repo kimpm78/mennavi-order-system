@@ -4,7 +4,7 @@ import AdminLoginPage from './pages/admin/AdminLoginPage.vue'
 import UserLoginPage from './pages/user/LoginPage.vue'
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '')
-const currentPath = ref(normalizePath(window.location.pathname))
+const currentPath = ref(normalizePath(resolveInitialPath()))
 
 onMounted(() => {
   window.addEventListener('popstate', syncPath)
@@ -29,10 +29,25 @@ function syncPath() {
   currentPath.value = normalizePath(window.location.pathname)
 }
 
+function resolveInitialPath() {
+  const params = new URLSearchParams(window.location.search)
+  const redirectPath = params.get('redirect')
+
+  if (!redirectPath) {
+    return window.location.pathname
+  }
+
+  const nextPath = redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`
+  window.history.replaceState({}, '', `${basePath}${nextPath}`)
+
+  return `${basePath}${nextPath}`
+}
+
 function normalizePath(path: string) {
-  const normalizedPath = basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || '/'
-    : path
+  const pathOnly = path.split('#')[0]?.split('?')[0] || '/'
+  const normalizedPath = basePath && pathOnly.startsWith(basePath)
+    ? pathOnly.slice(basePath.length) || '/'
+    : pathOnly
 
   if (normalizedPath === '/' || normalizedPath === '') {
     return '/login'
