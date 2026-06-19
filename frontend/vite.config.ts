@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: process.env.GITHUB_PAGES === 'true' ? '/mennavi-order-system/' : '/',
+  base: process.env.GITHUB_ACTIONS === 'true' ? '/mennavi-order-system/' : '/',
   plugins: [vue(), tailwindcss()],
   resolve: {
     alias: {
