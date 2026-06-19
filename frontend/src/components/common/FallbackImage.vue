@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { apiBaseUrl } from '../../lib/api'
+import { publicPath } from '../../lib/publicPath'
 
 const props = withDefaults(
   defineProps<{
@@ -9,14 +10,15 @@ const props = withDefaults(
     fallbackSrc?: string
   }>(),
   {
-    fallbackSrc: '/images/no-image.png',
+    fallbackSrc: 'images/no-image.png',
   },
 )
 
 const backendOrigin = apiBaseUrl.replace(/\/api\/?$/, '')
+const fallbackImageSrc = computed(() => publicPath(props.fallbackSrc))
 const resolvedSrc = computed(() => {
   if (!props.src) {
-    return props.fallbackSrc
+    return fallbackImageSrc.value
   }
 
   if (props.src.startsWith('/storage/')) {
@@ -29,11 +31,11 @@ const resolvedSrc = computed(() => {
 function handleImageError(event: Event) {
   const image = event.target as HTMLImageElement
 
-  if (image.src.endsWith(props.fallbackSrc)) {
+  if (image.src === new URL(fallbackImageSrc.value, window.location.href).href) {
     return
   }
 
-  image.src = props.fallbackSrc
+  image.src = fallbackImageSrc.value
 }
 </script>
 
