@@ -1,0 +1,49 @@
+name: Reset Demo Database
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 3日に1回 03:00 JST にデモDBを初期化します。
+    - cron: "0 18 */3 * *"
+
+jobs:
+  reset-demo-db:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_pgsql
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Reset and seed database
+        env:
+          APP_ENV: production
+          APP_DEBUG: "false"
+          APP_KEY: ${{ secrets.APP_KEY }}
+          APP_URL: ${{ vars.APP_URL }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          DB_CONNECTION: pgsql
+          DB_HOST: ${{ secrets.NEON_DB_HOST }}
+          DB_PORT: ${{ secrets.NEON_DB_PORT }}
+          DB_DATABASE: ${{ secrets.NEON_DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.NEON_DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.NEON_DB_PASSWORD }}
+          DB_SSLMODE: require
+          DB_SCHEMA: public
+          CACHE_STORE: file
+          SESSION_DRIVER: file
+          QUEUE_CONNECTION: sync
+          FILESYSTEM_DISK: public
+        run: php artisan migrate:fresh --seed --force

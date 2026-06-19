@@ -37,6 +37,34 @@ docker compose exec frontend npm run build
 - Backend API: http://127.0.0.1:8000/api
 - CloudBeaver: http://127.0.0.1:8978
 
+## 実行確認
+
+- 公開 URL: https://kimpm78.github.io/mennavi-order-system/
+
+## デモDBリセット
+
+GitHub Actions の `Reset Demo Database` workflow で、3日に1回 Neon DB を初期化して Seeder を実行します。
+
+GitHub の `Settings > Secrets and variables > Actions` に以下を設定します。
+
+Secrets:
+
+```text
+APP_KEY
+NEON_DB_HOST
+NEON_DB_PORT
+NEON_DB_DATABASE
+NEON_DB_USERNAME
+NEON_DB_PASSWORD
+```
+
+Variables:
+
+```text
+APP_URL
+FRONTEND_URL
+```
+
 ## DB 接続情報
 
 Docker Compose の PostgreSQL は以下で接続できます。

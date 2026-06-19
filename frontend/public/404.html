@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>麺ナビ</title>
+    <script>
+      const basePath = '/mennavi-order-system'
+      const path = window.location.pathname
+      const route = path.startsWith(basePath) ? path.slice(basePath.length) || '/' : '/'
+      const query = route === '/' ? '' : `?redirect=${encodeURIComponent(route + window.location.search + window.location.hash)}`
+
+      window.location.replace(`${basePath}/${query}`)
+    </script>
+  </head>
+  <body></body>
+</html>
