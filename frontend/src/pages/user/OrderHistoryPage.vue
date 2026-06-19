@@ -10,9 +10,16 @@ type OrderHistoryItem = {
   product_id?: number
   product_name: string
   imagePath?: string | null
+  selected_options?: SelectedOption[]
   unit_price: number
   quantity: number
   subtotal: number
+}
+
+type SelectedOption = {
+  product_id?: number | null
+  name: string
+  price: number
 }
 
 type OrderHistory = {
@@ -352,7 +359,7 @@ function printReceipt() {
   }
 
   const iframe = document.createElement('iframe')
-  const documentTitle = receiptDocumentTitle(order)
+  const documentTitle = receiptPdfFileName(order)
   iframe.title = documentTitle
   iframe.style.position = 'fixed'
   iframe.style.right = '0'
@@ -558,6 +565,7 @@ function printReceipt() {
     </html>
   `)
   printDocument.close()
+  printDocument.title = documentTitle
 
   const printWindow = iframe.contentWindow
   const cleanup = () => window.setTimeout(() => iframe.remove(), 500)
@@ -577,8 +585,12 @@ function receiptDocumentTitle(order: OrderHistory) {
   ].map(sanitizeReceiptFilePart).join('-')
 }
 
+function receiptPdfFileName(order: OrderHistory) {
+  return `${receiptDocumentTitle(order)}.pdf`
+}
+
 function sanitizeReceiptFilePart(value: string) {
-  return value.replace(/[\\/:*?"<>|]/g, '_').trim()
+  return value.replace(/[\\/:*?"<>|]/g, '_').trim() || '未登録'
 }
 
 function escapeHtml(value: string) {
@@ -1266,6 +1278,14 @@ async function submitReview(order: OrderHistory) {
       >
         <div class="min-w-0">
           <p class="truncate font-black text-neutral-900">{{ item.product_name }}</p>
+          <ul
+            v-if="item.selected_options?.length"
+            class="mt-1 space-y-0.5 text-xs font-bold text-neutral-500"
+          >
+            <li v-for="option in item.selected_options" :key="`${item.id}-${option.product_id}`">
+              + {{ option.name }}（{{ formatPrice(option.price) }}）
+            </li>
+          </ul>
           <p class="mt-1 font-bold text-neutral-500">{{ formatPrice(item.unit_price) }}</p>
         </div>
         <p class="font-bold text-neutral-500">× {{ item.quantity }}</p>

@@ -116,7 +116,7 @@ class OrderController extends Controller
         $subscription = $this->activeSubscriptionForUser($user->id);
         $receiptType = $validated['receipt_type'] ?? 'delivery';
         $pricing = $this->calculatePricing(
-            $cart->items->sum(fn ($item) => $item->product->price * $item->quantity),
+            $cart->items->sum(fn ($item) => $this->cartItemUnitPrice($item) * $item->quantity),
             $receiptType,
             $subscription,
         );
@@ -194,12 +194,16 @@ class OrderController extends Controller
             foreach ($cart->items as $cartItem) {
                 /** @var Product $product */
                 $product = $cartItem->product;
+                $selectedOptions = $this->normalizeSelectedOptions($cartItem->selected_options ?? []);
+                $unitPrice = $product->price + collect($selectedOptions)->sum(fn (array $option) => $option['price']);
+
                 $order->items()->create([
                     'product_id' => $product->id,
                     'product_name' => $product->name,
-                    'unit_price' => $product->price,
+                    'selected_options' => $selectedOptions,
+                    'unit_price' => $unitPrice,
                     'quantity' => $cartItem->quantity,
-                    'subtotal' => $product->price * $cartItem->quantity,
+                    'subtotal' => $unitPrice * $cartItem->quantity,
                 ]);
             }
 
@@ -542,6 +546,31 @@ class OrderController extends Controller
         return $orderNumber;
     }
 
+    private function cartItemUnitPrice($cartItem): int
+    {
+        $selectedOptions = $this->normalizeSelectedOptions($cartItem->selected_options ?? []);
+        $optionTotal = collect($selectedOptions)->sum(fn (array $option) => $option['price']);
+
+        return (int) $cartItem->product->price + $optionTotal;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $options
+     * @return array<int, array{product_id: int|null, name: string, price: int}>
+     */
+    private function normalizeSelectedOptions(array $options): array
+    {
+        return collect($options)
+            ->map(fn (array $option) => [
+                'product_id' => isset($option['product_id']) ? (int) $option['product_id'] : null,
+                'name' => (string) ($option['name'] ?? ''),
+                'price' => max((int) ($option['price'] ?? 0), 0),
+            ])
+            ->filter(fn (array $option) => $option['name'] !== '')
+            ->values()
+            ->all();
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -575,6 +604,7 @@ class OrderController extends Controller
                 'product_id' => $item->product_id,
                 'product_name' => $item->product_name,
                 'imagePath' => $item->product?->image_path,
+                'selected_options' => $item->selected_options ?? [],
                 'unit_price' => $item->unit_price,
                 'quantity' => $item->quantity,
                 'subtotal' => $item->subtotal,

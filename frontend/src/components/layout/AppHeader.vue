@@ -198,7 +198,7 @@ function notificationToneClass(tone: UserOrderNotification['tone']) {
 
           <div
             v-if="isNotificationMenuOpen"
-            class="absolute right-0 top-full mt-3 w-80 overflow-hidden rounded-lg border border-neutral-100 bg-white text-sm font-bold text-neutral-700 shadow-lg"
+            class="fixed left-4 right-4 top-20 z-50 overflow-hidden rounded-lg border border-neutral-100 bg-white text-sm font-bold text-neutral-700 shadow-lg md:absolute md:left-auto md:right-0 md:top-full md:mt-3 md:w-80"
             role="menu"
             @click.stop
           >
@@ -280,7 +280,7 @@ function notificationToneClass(tone: UserOrderNotification['tone']) {
 
           <div
             v-if="isProfileMenuOpen"
-            class="absolute right-0 top-full mt-3 w-40 border border-neutral-100 bg-white py-4 text-sm font-bold text-neutral-600 shadow-lg"
+            class="absolute right-0 top-full z-50 mt-3 w-40 border border-neutral-100 bg-white py-4 text-sm font-bold text-neutral-600 shadow-lg"
             role="menu"
             @click.stop
           >

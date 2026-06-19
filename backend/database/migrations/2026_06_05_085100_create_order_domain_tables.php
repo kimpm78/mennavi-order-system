@@ -84,6 +84,7 @@ return new class extends Migration
             $table->id()->comment('カート詳細ID / 自動採番');
             $table->foreignId('cart_id')->comment('カートID / carts.id と紐づけ')->constrained('carts')->cascadeOnDelete();
             $table->foreignId('product_id')->comment('商品ID / products.id と紐づけ')->constrained('products')->restrictOnDelete();
+            $table->json('selected_options')->nullable()->comment('選択オプション / トッピングなど');
             $table->integer('quantity')->comment('数量 / 1以上');
             $table->timestamps();
             $table->softDeletes()->comment('削除日時 / 論理削除');
@@ -170,6 +171,7 @@ return new class extends Migration
             $table->foreignId('order_id')->comment('注文ID')->constrained('orders')->cascadeOnDelete();
             $table->foreignId('product_id')->comment('商品ID')->constrained('products')->restrictOnDelete();
             $table->string('product_name', 150)->comment('商品名');
+            $table->json('selected_options')->nullable()->comment('注文時点の選択オプション / トッピングなど');
             $table->integer('unit_price')->comment('単価');
             $table->integer('quantity')->comment('数量');
             $table->integer('subtotal')->comment('小計');

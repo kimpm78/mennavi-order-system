@@ -38,6 +38,10 @@ class CartController extends Controller
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'quantity' => ['required', 'integer', 'min:1'],
             'store_name' => ['required', 'string', 'max:150'],
+            'selected_options' => ['nullable', 'array'],
+            'selected_options.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'selected_options.*.name' => ['required_with:selected_options', 'string', 'max:150'],
+            'selected_options.*.price' => ['required_with:selected_options', 'integer', 'min:0'],
         ]);
 
         $product = Product::where('status', 'active')->findOrFail($validated['product_id']);
@@ -57,6 +61,7 @@ class CartController extends Controller
             'product_id' => $product->id,
         ]);
         $cartItem->quantity = ($cartItem->exists ? $cartItem->quantity : 0) + $validated['quantity'];
+        $cartItem->selected_options = $this->normalizeSelectedOptions($validated['selected_options'] ?? []);
         $cartItem->save();
 
         return response()->json($this->cartResponse($cart->fresh(['items.product.category'])), 201);
@@ -180,14 +185,21 @@ class CartController extends Controller
 
         $items = $cart->items
             ->filter(fn (CartItem $item) => $item->product !== null)
-            ->map(fn (CartItem $item) => [
-                'storeName' => $cart->store_name,
-                'menuItemId' => $item->product_id,
-                'name' => $item->product->name,
-                'category' => $item->product->category?->name,
-                'price' => $item->product->price,
-                'quantity' => $item->quantity,
-            ])
+            ->map(function (CartItem $item) use ($cart) {
+                $selectedOptions = $this->normalizeSelectedOptions($item->selected_options ?? []);
+                $optionTotal = collect($selectedOptions)->sum(fn (array $option) => $option['price']);
+
+                return [
+                    'storeName' => $cart->store_name,
+                    'menuItemId' => $item->product_id,
+                    'name' => $item->product->name,
+                    'category' => $item->product->category?->name,
+                    'price' => $item->product->price + $optionTotal,
+                    'basePrice' => $item->product->price,
+                    'selectedOptions' => $selectedOptions,
+                    'quantity' => $item->quantity,
+                ];
+            })
             ->values()
             ->all();
 
@@ -197,5 +209,22 @@ class CartController extends Controller
             'items' => $items,
             'total' => collect($items)->sum(fn (array $item) => $item['price'] * $item['quantity']),
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $options
+     * @return array<int, array{product_id: int|null, name: string, price: int}>
+     */
+    private function normalizeSelectedOptions(array $options): array
+    {
+        return collect($options)
+            ->map(fn (array $option) => [
+                'product_id' => isset($option['product_id']) ? (int) $option['product_id'] : null,
+                'name' => (string) ($option['name'] ?? ''),
+                'price' => max((int) ($option['price'] ?? 0), 0),
+            ])
+            ->filter(fn (array $option) => $option['name'] !== '')
+            ->values()
+            ->all();
     }
 }
