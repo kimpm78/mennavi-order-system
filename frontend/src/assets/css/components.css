@@ -16,7 +16,7 @@
   background:
     linear-gradient(90deg, rgba(12, 7, 6, 0.64), rgba(12, 7, 6, 0.34)),
     linear-gradient(rgba(28, 12, 10, 0.24), rgba(28, 12, 10, 0.24)),
-    var(--brand-image, url('/images/mennavi-login.png')) center / cover;
+    var(--brand-image) center / cover;
 }
 
 .brand-copy {

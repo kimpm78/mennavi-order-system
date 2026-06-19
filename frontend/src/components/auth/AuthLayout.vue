@@ -1,5 +1,8 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+import { publicPath } from '../../lib/publicPath'
+
+const props = defineProps<{
   eyebrow: string
   title: string
   lead: string
@@ -7,18 +10,24 @@ defineProps<{
   panelTitle: string
   brandImage?: string
 }>()
+
+const defaultBrandImage = publicPath('images/mennavi-login.png')
+const logoPath = publicPath('logo.svg')
+const brandPanelStyle = computed(() => ({
+  '--brand-image': `url('${props.brandImage ? publicPath(props.brandImage) : defaultBrandImage}')`,
+}))
 </script>
 
 <template>
   <main class="app-shell">
     <section
       class="brand-panel"
-      :style="brandImage ? { '--brand-image': `url('${brandImage}')` } : undefined"
+      :style="brandPanelStyle"
       aria-label="Mennavi order system"
     >
       <div class="brand-copy">
         <p class="eyebrow">{{ eyebrow }}</p>
-        <img class="brand-logo" src="/logo.svg" alt="麺ナビ" />
+        <img class="brand-logo" :src="logoPath" alt="麺ナビ" />
         <p class="lead">{{ lead }}</p>
       </div>
     </section>
