@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { CircleUserRound, Search, ShoppingCart } from 'lucide-vue-next'
+import { Bell, CircleUserRound, Search, ShoppingCart } from 'lucide-vue-next'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+
+type UserOrderNotification = {
+  id: string
+  title: string
+  message: string
+  tone: 'order' | 'cooking' | 'delivery'
+  time?: string
+}
 
 const props = defineProps<{
   isAuthenticated?: boolean
   isPlusMember?: boolean
   cartCount?: number
+  orderNotifications?: UserOrderNotification[]
   searchQuery?: string
   activeNav?: 'stores' | 'favorites' | ''
 }>()
@@ -16,39 +25,49 @@ const emit = defineEmits<{
   brandClick: []
   storesClick: []
   favoritesClick: []
+  openOrderNotification: [notification: UserOrderNotification]
   openAccountSection: [section: 'profile' | 'orders' | 'delivery']
   'update:searchQuery': [value: string]
 }>()
 
 const isProfileMenuOpen = ref(false)
+const isNotificationMenuOpen = ref(false)
 
 onMounted(() => {
-  window.addEventListener('click', closeProfileMenu)
-  window.addEventListener('keydown', closeProfileMenuWithEscape)
+  window.addEventListener('click', closeFloatingMenus)
+  window.addEventListener('keydown', closeFloatingMenusWithEscape)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('click', closeProfileMenu)
-  window.removeEventListener('keydown', closeProfileMenuWithEscape)
+  window.removeEventListener('click', closeFloatingMenus)
+  window.removeEventListener('keydown', closeFloatingMenusWithEscape)
 })
 
 function toggleProfileMenu(event: MouseEvent) {
   event.stopPropagation()
   isProfileMenuOpen.value = !isProfileMenuOpen.value
+  isNotificationMenuOpen.value = false
 }
 
-function closeProfileMenu() {
+function toggleNotificationMenu(event: MouseEvent) {
+  event.stopPropagation()
+  isNotificationMenuOpen.value = !isNotificationMenuOpen.value
   isProfileMenuOpen.value = false
 }
 
-function closeProfileMenuWithEscape(event: KeyboardEvent) {
+function closeFloatingMenus() {
+  isProfileMenuOpen.value = false
+  isNotificationMenuOpen.value = false
+}
+
+function closeFloatingMenusWithEscape(event: KeyboardEvent) {
   if (event.key === 'Escape') {
-    closeProfileMenu()
+    closeFloatingMenus()
   }
 }
 
 function handleLogout() {
-  closeProfileMenu()
+  closeFloatingMenus()
   emit('logout')
 }
 
@@ -81,8 +100,30 @@ function openCart() {
 }
 
 function openAccountSection(section: 'profile' | 'orders' | 'delivery') {
-  closeProfileMenu()
+  closeFloatingMenus()
   emit('openAccountSection', section)
+}
+
+function openOrderNotification(notification: UserOrderNotification) {
+  closeFloatingMenus()
+  emit('openOrderNotification', notification)
+}
+
+function notificationCountLabel() {
+  const count = props.orderNotifications?.length ?? 0
+  return count > 99 ? '+99' : String(count)
+}
+
+function notificationToneClass(tone: UserOrderNotification['tone']) {
+  if (tone === 'cooking') {
+    return 'bg-amber-50 text-amber-700'
+  }
+
+  if (tone === 'delivery') {
+    return 'bg-emerald-50 text-emerald-700'
+  }
+
+  return 'bg-red-50 text-red-700'
 }
 </script>
 
@@ -138,6 +179,70 @@ function openAccountSection(section: 'profile' | 'orders' | 'delivery') {
       </form>
 
       <div class="ml-auto flex shrink-0 items-center gap-3">
+        <div v-if="isAuthenticated" class="relative">
+          <button
+            class="relative grid h-11 w-11 place-items-center rounded-full text-red-700 transition hover:bg-red-50"
+            type="button"
+            aria-label="注文通知"
+            :aria-expanded="isNotificationMenuOpen"
+            @click="toggleNotificationMenu"
+          >
+            <Bell class="h-6 w-6" :stroke-width="2.3" />
+            <span
+              v-if="orderNotifications?.length"
+              class="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-red-700 px-1 text-xs font-black text-white"
+            >
+              {{ notificationCountLabel() }}
+            </span>
+          </button>
+
+          <div
+            v-if="isNotificationMenuOpen"
+            class="absolute right-0 top-full mt-3 w-80 overflow-hidden rounded-lg border border-neutral-100 bg-white text-sm font-bold text-neutral-700 shadow-lg"
+            role="menu"
+            @click.stop
+          >
+            <div class="border-b border-neutral-100 px-4 py-3">
+              <p class="font-black text-neutral-900">注文通知</p>
+              <p class="mt-1 text-xs font-bold text-neutral-500">調理開始・配送中の注文を確認できます。</p>
+            </div>
+
+            <div v-if="orderNotifications?.length" class="max-h-80 overflow-y-auto">
+              <button
+                v-for="notification in orderNotifications"
+                :key="notification.id"
+                class="block w-full border-b border-neutral-100 px-4 py-3 text-left last:border-b-0 hover:bg-red-50"
+                type="button"
+                role="menuitem"
+                @click="openOrderNotification(notification)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <span
+                    class="rounded-full px-2.5 py-1 text-xs font-black"
+                    :class="notificationToneClass(notification.tone)"
+                  >
+                    {{ notification.title }}
+                  </span>
+                  <span v-if="notification.time" class="shrink-0 text-xs font-black text-neutral-400">
+                    {{ notification.time }}
+                  </span>
+                </div>
+                <p class="mt-2 leading-6 text-neutral-700">{{ notification.message }}</p>
+              </button>
+            </div>
+
+            <button
+              v-else
+              class="block w-full px-4 py-5 text-left text-sm font-bold text-neutral-500 hover:bg-neutral-50"
+              type="button"
+              role="menuitem"
+              @click="openAccountSection('orders')"
+            >
+              現在進行中の注文通知はありません。
+            </button>
+          </div>
+        </div>
+
         <button
           class="relative grid h-11 w-11 place-items-center rounded-full text-red-700 transition hover:bg-red-50"
           type="button"

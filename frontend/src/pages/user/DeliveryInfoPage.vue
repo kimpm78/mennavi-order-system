@@ -81,28 +81,31 @@ const sectionLead = computed(() => {
   return '注文時に利用するお名前、電話番号、住所を登録します。'
 })
 const isPlusActive = computed(() => {
-  if (props.subscription?.status !== 'active') {
+  const subscription = props.subscription
+  if (subscription?.status !== 'active') {
     return false
   }
-  if (!props.subscription.current_period_end) {
+  if (!subscription.current_period_end) {
     return true
   }
-  return new Date(props.subscription.current_period_end).getTime() > Date.now()
+  return new Date(subscription.current_period_end).getTime() > Date.now()
 })
+
+const activeSubscription = computed(() => isPlusActive.value ? props.subscription ?? null : null)
 
 const plusStatusLabel = computed(() => {
   if (!isPlusActive.value) {
     return '未加入'
   }
 
-  return props.subscription.cancel_at_period_end ? '解約予約中' : '利用中'
+  return activeSubscription.value?.cancel_at_period_end ? '解約予約中' : '利用中'
 })
 const plusStatusMessage = computed(() => {
   if (!isPlusActive.value) {
     return '麺ナビ Plusに加入すると、配送料無料と注文割引を利用できます。'
   }
 
-  if (props.subscription.cancel_at_period_end) {
+  if (activeSubscription.value?.cancel_at_period_end) {
     return '現在の利用期限まではPlus特典を利用できます。'
   }
 
@@ -443,12 +446,12 @@ function orderStatusLabel(status: string) {
             </div>
 
             <div
-              v-if="isPlusActive"
+              v-if="activeSubscription"
               class="mt-4 rounded-lg bg-white px-4 py-3 text-sm font-bold text-neutral-700"
             >
               <span class="text-neutral-500">現在の利用期限：</span>
               <span class="font-black text-neutral-900">
-                {{ formatSubscriptionEnd(subscription.current_period_end) }}
+                {{ formatSubscriptionEnd(activeSubscription.current_period_end) }}
               </span>
             </div>
 

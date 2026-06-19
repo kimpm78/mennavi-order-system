@@ -9,6 +9,7 @@ type StoreForm = {
   description: string
   address: string
   phone: string
+  invoice_number: string
   weekday_hours: string
   weekend_hours: string
   holidays: string[]
@@ -167,6 +168,17 @@ const addHoliday = (form: StoreForm, event: Event) => {
             />
           </label>
 
+          <label class="grid gap-2 text-sm font-black text-[#5c4644]">
+            インボイス番号
+              <input
+                v-model="storeForm.invoice_number"
+                class="h-12 w-full min-w-0 rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-neutral-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50 disabled:bg-neutral-100 disabled:text-neutral-500"
+              maxlength="14"
+              placeholder="T1234567890123"
+            />
+            <span class="text-xs font-bold text-neutral-500">適格請求書発行事業者登録番号を入力してください。</span>
+          </label>
+
           <div class="grid gap-2 text-sm font-black text-[#5c4644]">
             予算
             <div class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
@@ -249,6 +261,7 @@ const addHoliday = (form: StoreForm, event: Event) => {
             <p class="mt-2 truncate">店舗名：{{ storeForm.name || '未入力' }}</p>
             <p class="mt-1 truncate">所在地：{{ storeForm.address || '未入力' }}</p>
             <p class="mt-1 truncate">電話番号：{{ storeForm.phone || '未入力' }}</p>
+            <p class="mt-1 truncate">インボイス番号：{{ storeForm.invoice_number || '未入力' }}</p>
             <p class="mt-1 truncate">休日：{{ storeForm.holidays.length ? storeForm.holidays.join('、') : '未入力' }}</p>
             <p class="mt-1 truncate">
               予算：{{ storeForm.budget_min || '未入力' }} 〜 {{ storeForm.budget_max || '未入力' }}

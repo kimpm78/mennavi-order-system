@@ -16,6 +16,7 @@ return new class extends Migration
             $table->text('description')->nullable()->comment('店舗説明');
             $table->string('address')->nullable()->comment('所在地');
             $table->string('phone', 20)->nullable()->comment('電話番号');
+            $table->string('invoice_number', 14)->nullable()->index()->comment('適格請求書発行事業者登録番号 / T + 13桁');
             $table->string('weekday_hours', 100)->nullable()->comment('平日営業時間');
             $table->string('weekend_hours', 100)->nullable()->comment('土日祝営業時間');
             $table->string('holiday', 100)->nullable()->comment('休日');
@@ -135,6 +136,8 @@ return new class extends Migration
             $table->string('customer_name', 100)->comment('注文者名 / ゲスト注文にも対応');
             $table->string('customer_email')->comment('メールアドレス / 注文確認用');
             $table->string('customer_phone', 20)->nullable()->comment('電話番号 / 連絡先');
+            $table->string('store_name_snapshot', 150)->nullable()->comment('注文時点の店舗名 / 領収書表示用');
+            $table->string('store_invoice_number', 14)->nullable()->comment('注文時点の適格請求書発行事業者登録番号 / 領収書表示用');
             $table->string('receipt_type', 20)->default('delivery')->comment('受け取り方法 / delivery, pickup');
             $table->integer('subtotal_amount')->default(0)->comment('商品小計 / 税込・割引適用前');
             $table->decimal('membership_discount_rate', 5, 2)->default(0)->comment('麺ナビ Plus割引率');
@@ -358,6 +361,7 @@ return new class extends Migration
     {
         DB::statement('ALTER TABLE stores ADD CONSTRAINT stores_rating_range CHECK (rating >= 0 AND rating <= 5)');
         DB::statement('ALTER TABLE stores ADD CONSTRAINT stores_review_count_non_negative CHECK (review_count >= 0)');
+        DB::statement("ALTER TABLE stores ADD CONSTRAINT stores_invoice_number_format CHECK (invoice_number IS NULL OR invoice_number ~ '^T[0-9]{13}$')");
         DB::statement('ALTER TABLE products ADD CONSTRAINT products_price_non_negative CHECK (price >= 0)');
         DB::statement("ALTER TABLE products ADD CONSTRAINT products_status_check CHECK (status IN ('active', 'sold_out', 'hidden'))");
         DB::statement('ALTER TABLE cart_items ADD CONSTRAINT cart_items_quantity_positive CHECK (quantity >= 1)');
@@ -374,6 +378,7 @@ return new class extends Migration
         DB::statement('ALTER TABLE orders ADD CONSTRAINT orders_tax_amount_non_negative CHECK (tax_amount >= 0)');
         DB::statement('ALTER TABLE orders ADD CONSTRAINT orders_total_amount_non_negative CHECK (total_amount >= 0)');
         DB::statement('ALTER TABLE orders ADD CONSTRAINT orders_earned_points_non_negative CHECK (earned_points >= 0)');
+        DB::statement("ALTER TABLE orders ADD CONSTRAINT orders_store_invoice_number_format CHECK (store_invoice_number IS NULL OR store_invoice_number ~ '^T[0-9]{13}$')");
         DB::statement("ALTER TABLE orders ADD CONSTRAINT orders_receipt_type_check CHECK (receipt_type IN ('delivery', 'pickup'))");
         DB::statement("ALTER TABLE orders ADD CONSTRAINT orders_order_status_check CHECK (order_status IN ('received', 'cooking', 'delivering', 'completed', 'canceled'))");
         DB::statement("ALTER TABLE orders ADD CONSTRAINT orders_payment_status_check CHECK (payment_status IN ('pending', 'paid', 'failed', 'partial_refunded', 'refunded'))");

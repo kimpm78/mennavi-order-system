@@ -17,6 +17,8 @@ class Order extends Model
         'customer_name',
         'customer_email',
         'customer_phone',
+        'store_name_snapshot',
+        'store_invoice_number',
         'receipt_type',
         'subtotal_amount',
         'delivery_fee',

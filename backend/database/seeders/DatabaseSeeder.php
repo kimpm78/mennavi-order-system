@@ -98,6 +98,8 @@ class DatabaseSeeder extends Seeder
             [
                 'description' => '24時間かけて丁寧に炊き上げた濃厚豚骨スープと、特製極細麺が織りなす至極の一杯。奥深い旨みと上品な香りをお楽しみください。',
                 'address' => '東京都渋谷区神南 1-2-3',
+                'phone' => '03-1234-5678',
+                'invoice_number' => 'T1234567890123',
                 'weekday_hours' => "11:00-15:00\n17:00-22:00",
                 'weekend_hours' => '11:00-22:00',
                 'holiday' => '火曜日',
@@ -187,6 +189,8 @@ class DatabaseSeeder extends Seeder
                 'customer_name' => $testUser->name,
                 'customer_email' => $testUser->email,
                 'customer_phone' => $testUser->phone,
+                'store_name_snapshot' => $store->name,
+                'store_invoice_number' => $store->invoice_number,
                 'receipt_type' => 'delivery',
                 'subtotal_amount' => 1730,
                 'delivery_fee' => 350,

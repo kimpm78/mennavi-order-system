@@ -10,6 +10,7 @@ type StoreProfileForm = {
   description: string
   address: string
   phone: string
+  invoice_number: string
   weekday_hours: string
   weekend_hours: string
   holidays: string[]
@@ -152,6 +153,17 @@ const addHoliday = (form: StoreProfileForm, event: Event) => {
                 placeholder="03-1234-5678"
                 type="tel"
               />
+            </label>
+
+            <label class="grid gap-2 text-sm font-black text-[#5c4644]">
+              インボイス番号
+              <input
+                v-model="storeProfileForm.invoice_number"
+                class="h-12 w-full min-w-0 rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-neutral-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50 disabled:bg-neutral-100 disabled:text-neutral-500"
+                maxlength="14"
+                placeholder="T1234567890123"
+              />
+              <span class="text-xs font-bold text-neutral-500">適格請求書発行事業者登録番号を入力してください。</span>
             </label>
 
             <div class="grid gap-4 rounded-xl border border-red-100 bg-red-50/40 p-4">

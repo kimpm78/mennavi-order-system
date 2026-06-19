@@ -97,6 +97,7 @@ export function useAdminPage(
     description: '',
     address: '',
     phone: '',
+    invoice_number: '',
     weekday_hours: '11:00-15:00\n17:00-22:00',
     weekend_hours: '11:00-22:00',
     holidays: ['火曜日'] as string[],
@@ -111,6 +112,7 @@ export function useAdminPage(
     description: '',
     address: '',
     phone: '',
+    invoice_number: '',
     weekday_hours: '',
     weekend_hours: '',
     holidays: [] as string[],
@@ -487,6 +489,7 @@ export function useAdminPage(
     storeProfileForm.description = store.description ?? ''
     storeProfileForm.address = store.address ?? ''
     storeProfileForm.phone = store.phone ?? ''
+    storeProfileForm.invoice_number = store.invoice_number ?? ''
     storeProfileForm.weekday_hours = store.weekday_hours ?? ''
     storeProfileForm.weekend_hours = store.weekend_hours ?? ''
     storeProfileForm.holidays = parseHolidayValue(store.holiday)
@@ -524,6 +527,7 @@ export function useAdminPage(
           description: storeProfileForm.description || null,
           address: storeProfileForm.address || null,
           phone: storeProfileForm.phone || null,
+          invoice_number: storeProfileForm.invoice_number || null,
           weekday_hours: storeProfileForm.weekday_hours || null,
           weekend_hours: storeProfileForm.weekend_hours || null,
           holiday: formatHolidayValue(storeProfileForm.holidays),
@@ -559,6 +563,7 @@ export function useAdminPage(
           description: storeForm.description || null,
           address: storeForm.address || null,
           phone: storeForm.phone || null,
+          invoice_number: storeForm.invoice_number || null,
           weekday_hours: storeForm.weekday_hours || null,
           weekend_hours: storeForm.weekend_hours || null,
           holiday: formatHolidayValue(storeForm.holidays),
@@ -587,6 +592,7 @@ export function useAdminPage(
     storeForm.description = ''
     storeForm.address = ''
     storeForm.phone = ''
+    storeForm.invoice_number = ''
     storeForm.weekday_hours = '11:00-15:00\n17:00-22:00'
     storeForm.weekend_hours = '11:00-22:00'
     storeForm.holidays = ['火曜日']

@@ -308,7 +308,12 @@ function updateUser(nextUser: User) {
           ログインへ戻る
         </button>
 
-        <button class="text-link auth-switch-link" type="button" @click="props.goTo('/admin/login')">
+        <button
+          v-if="!isRegister"
+          class="text-link auth-switch-link"
+          type="button"
+          @click="props.goTo('/admin/login')"
+        >
           管理者ログインはこちら
         </button>
       </form>

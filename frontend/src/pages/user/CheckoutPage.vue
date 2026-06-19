@@ -69,6 +69,7 @@ const emit = defineEmits<{
 
 const receiptType = ref<'delivery' | 'pickup'>('delivery')
 const paymentMethod = ref<'card' | 'paypay' | 'cash'>('card')
+const orderNote = ref('')
 const isPaymentModalOpen = ref(false)
 const saveAsDefault = ref(true)
 const paymentLoading = ref(false)
@@ -414,6 +415,7 @@ async function submitOrder() {
           : {}),
         payment_method: paymentMethod.value,
         receipt_type: receiptType.value,
+        note: orderNote.value.trim() || null,
       }),
     })
 
@@ -521,6 +523,25 @@ function formatPaymentMethod(method: PaymentMethod) {
             </div>
           </div>
         </article>
+
+        <section
+          v-if="cartItems.length"
+          class="rounded-lg border border-red-200 bg-white p-4 shadow-sm"
+        >
+          <label class="grid gap-2 text-sm font-black text-neutral-700">
+            備考
+            <textarea
+              v-model="orderNote"
+              class="min-h-28 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-bold leading-6 text-neutral-800 outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-50"
+              maxlength="1000"
+              placeholder="アレルギー、要望など"
+            />
+          </label>
+          <div class="mt-2 flex items-center justify-between gap-4 text-xs font-bold text-neutral-500">
+            <span>店舗への連絡事項がある場合に入力してください。</span>
+            <span>{{ orderNote.length }}/1000</span>
+          </div>
+        </section>
 
         <div
           v-if="!cartItems.length"
