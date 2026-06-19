@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Download, Printer, ReceiptText, SlidersHorizontal, Star, X } from 'lucide-vue-next'
+import { Download, ReceiptText, SlidersHorizontal, Star, X } from 'lucide-vue-next'
 import FallbackImage from '@/components/common/FallbackImage.vue'
+import { downloadReceiptPdfFile } from '@/lib/receiptPdf'
 import { apiRequest, authHeaders } from '../../lib/api'
 import { getCustomerToken } from '../../lib/authStorage'
 
@@ -60,6 +61,7 @@ const selectedReceiptOrder = ref<OrderHistory | null>(null)
 const selectedDetailOrder = ref<OrderHistory | null>(null)
 const isUsageModalOpen = ref(false)
 const isFilterOpen = ref(false)
+const receiptPdfLoading = ref(false)
 const filters = reactive({
   status: '',
   paymentMethod: '',
@@ -350,256 +352,23 @@ function closeOrderModal() {
   isUsageModalOpen.value = false
 }
 
-function printReceipt() {
+async function downloadReceiptPdf() {
   const order = selectedReceiptOrder.value
-  const receiptContent = document.querySelector<HTMLElement>('.receipt-print-content')
 
-  if (!order || !receiptContent) {
+  if (!order) {
     return
   }
 
-  const iframe = document.createElement('iframe')
-  const documentTitle = receiptPdfFileName(order)
-  iframe.title = documentTitle
-  iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = '0'
-  iframe.style.opacity = '0'
-  document.body.appendChild(iframe)
+  receiptPdfLoading.value = true
+  actionMessage.value = ''
 
-  const printDocument = iframe.contentDocument ?? iframe.contentWindow?.document
-  if (!printDocument) {
-    iframe.remove()
-    return
+  try {
+    await downloadReceiptPdfFile(order)
+  } catch (error) {
+    actionMessage.value = error instanceof Error ? error.message : 'PDFの作成に失敗しました。'
+  } finally {
+    receiptPdfLoading.value = false
   }
-
-  printDocument.open()
-  printDocument.write(`
-    <!doctype html>
-    <html lang="ja">
-      <head>
-        <meta charset="UTF-8" />
-        <title>${escapeHtml(documentTitle)}</title>
-        <style>
-          @page {
-            size: A4;
-            margin: 14mm;
-          }
-
-          * {
-            box-sizing: border-box;
-          }
-
-          body {
-            margin: 0;
-            background: #fff;
-            color: #171717;
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          }
-
-          .receipt-print-content {
-            width: 100%;
-            max-width: 680px;
-            margin: 0 auto;
-            border: 1px solid #e5e5e5;
-            border-radius: 8px;
-            padding: 24px;
-            break-inside: avoid;
-            page-break-inside: avoid;
-          }
-
-          .flex {
-            display: flex;
-          }
-
-          .grid {
-            display: grid;
-          }
-
-          .justify-between {
-            justify-content: space-between;
-          }
-
-          .items-start {
-            align-items: flex-start;
-          }
-
-          .gap-3 {
-            gap: 12px;
-          }
-
-          .gap-4 {
-            gap: 16px;
-          }
-
-          .gap-5 {
-            gap: 20px;
-          }
-
-          .mt-1 {
-            margin-top: 4px;
-          }
-
-          .mt-3 {
-            margin-top: 12px;
-          }
-
-          .mt-5 {
-            margin-top: 20px;
-          }
-
-          .mt-6 {
-            margin-top: 24px;
-          }
-
-          .pb-5 {
-            padding-bottom: 20px;
-          }
-
-          .pt-5 {
-            padding-top: 20px;
-          }
-
-          .p-5 {
-            padding: 20px;
-          }
-
-          .px-4 {
-            padding-left: 16px;
-            padding-right: 16px;
-          }
-
-          .py-3 {
-            padding-top: 12px;
-            padding-bottom: 12px;
-          }
-
-          .rounded-lg {
-            border-radius: 8px;
-          }
-
-          .border {
-            border: 1px solid #e5e5e5;
-          }
-
-          .border-b,
-          .border-t {
-            border-color: #e5e5e5;
-          }
-
-          .border-b {
-            border-bottom: 1px solid #e5e5e5;
-          }
-
-          .border-t {
-            border-top: 1px solid #e5e5e5;
-          }
-
-          .bg-neutral-50,
-          .bg-red-50 {
-            background: #fafafa;
-          }
-
-          .text-right {
-            text-align: right;
-          }
-
-          .text-sm {
-            font-size: 14px;
-          }
-
-          .text-xs {
-            font-size: 12px;
-          }
-
-          .text-lg {
-            font-size: 18px;
-          }
-
-          .text-xl {
-            font-size: 20px;
-          }
-
-          .text-4xl {
-            font-size: 36px;
-            line-height: 1.1;
-          }
-
-          .font-bold {
-            font-weight: 700;
-          }
-
-          .font-black {
-            font-weight: 900;
-          }
-
-          .text-neutral-500,
-          .text-neutral-600,
-          .text-neutral-700 {
-            color: #525252;
-          }
-
-          .text-neutral-900 {
-            color: #171717;
-          }
-
-          .text-red-700 {
-            color: #b91c1c;
-          }
-
-          dl {
-            margin: 0;
-          }
-
-          dt,
-          dd,
-          p {
-            margin: 0;
-          }
-        </style>
-      </head>
-      <body>${receiptContent.outerHTML}</body>
-    </html>
-  `)
-  printDocument.close()
-  printDocument.title = documentTitle
-
-  const printWindow = iframe.contentWindow
-  const cleanup = () => window.setTimeout(() => iframe.remove(), 500)
-
-  window.setTimeout(() => {
-    printWindow?.focus()
-    printWindow?.print()
-    cleanup()
-  }, 100)
-}
-
-function receiptDocumentTitle(order: OrderHistory) {
-  return [
-    order.order_number,
-    order.store_invoice_number || 'インボイス番号未登録',
-    order.store_name || '店舗名未登録',
-  ].map(sanitizeReceiptFilePart).join('-')
-}
-
-function receiptPdfFileName(order: OrderHistory) {
-  return `${receiptDocumentTitle(order)}.pdf`
-}
-
-function sanitizeReceiptFilePart(value: string) {
-  return value.replace(/[\\/:*?"<>|]/g, '_').trim() || '未登録'
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
 }
 
 function reviewForm(order: OrderHistory) {
@@ -1198,12 +967,13 @@ async function submitReview(order: OrderHistory) {
         閉じる
       </button>
       <button
-        class="inline-flex items-center gap-2 rounded-lg bg-red-700 px-5 py-3 text-sm font-black text-white hover:bg-red-800"
+        class="inline-flex items-center gap-2 rounded-lg bg-red-700 px-5 py-3 text-sm font-black text-white hover:bg-red-800 disabled:opacity-60"
         type="button"
-        @click="printReceipt"
+        :disabled="receiptPdfLoading"
+        @click="downloadReceiptPdf"
       >
-        <Printer class="h-4 w-4" />
-        印刷
+        <Download class="h-4 w-4" />
+        {{ receiptPdfLoading ? '作成中...' : 'PDFダウンロード' }}
       </button>
     </div>
   </section>
