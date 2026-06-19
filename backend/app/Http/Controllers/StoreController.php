@@ -35,6 +35,15 @@ class StoreController extends Controller
     private function storeResponse(Store $store): array
     {
         $categories = $store->products->pluck('category.name')->filter()->unique()->values();
+        $popularToppings = $store->products
+            ->filter(fn ($product) => $product->category?->name === 'トッピング' && $product->status === 'active')
+            ->sortBy('display_order')
+            ->map(fn ($product) => [
+                'product_id' => $product->id,
+                'name' => $product->name,
+                'price' => $product->price,
+            ])
+            ->values();
 
         return [
             'id' => $store->id,
@@ -76,7 +85,7 @@ class StoreController extends Controller
                     'description' => $product->description,
                     'imagePath' => $product->image_path,
                     'imageClass' => 'ramen-photo ramen-photo-bowl',
-                    'toppings' => [],
+                    'toppings' => $product->category?->name === 'メイン' ? $popularToppings : [],
                 ])
                 ->values(),
         ];

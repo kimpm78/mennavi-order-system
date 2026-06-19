@@ -51,7 +51,13 @@ type MenuItem = {
   imagePath?: string | null
   imageClass?: string
   description?: string | null
-  toppings?: string[]
+  toppings?: SelectedOption[]
+}
+
+type SelectedOption = {
+  product_id?: number | null
+  name: string
+  price: number
 }
 
 type StoreReview = {
@@ -69,16 +75,18 @@ type CartItem = {
   category: string
   price: number
   quantity: number
+  selectedOptions?: SelectedOption[]
 }
 
 const quantities = reactive<Record<number, number>>(
   Object.fromEntries((props.store.products ?? []).map((item) => [item.id, 1])),
 )
+const selectedToppings = reactive<Record<number, SelectedOption[]>>({})
 
 const menuItems = computed(() => props.store.products ?? [])
 const categories = computed(() => [
   'すべて',
-  ...Array.from(new Set(menuItems.value.map((item) => item.category))),
+  ...Array.from(new Set(menuItems.value.map((item) => categoryDisplayLabel(item.category)))),
 ])
 
 const filteredMenuItems = computed(() => {
@@ -86,7 +94,7 @@ const filteredMenuItems = computed(() => {
     return menuItems.value
   }
 
-  return menuItems.value.filter((item) => item.category === activeCategory.value)
+  return menuItems.value.filter((item) => categoryDisplayLabel(item.category) === activeCategory.value)
 })
 const reviewCount = computed(() => Number.parseInt((props.store.reviews ?? '0').replace(/,/g, ''), 10) || 0)
 const hasReviews = computed(() => reviewCount.value > 0)
@@ -104,6 +112,37 @@ function isSoldOut(item: MenuItem) {
 
 function formatPrice(price: number) {
   return `${price.toLocaleString('ja-JP')}円`
+}
+
+function categoryDisplayLabel(category?: string | null) {
+  if (category === 'メイン') {
+    return 'ラーメン'
+  }
+
+  if (category === 'ドリンク & お酒') {
+    return 'ドリンク'
+  }
+
+  return category || '未分類'
+}
+
+function canSelectToppings(item: MenuItem) {
+  return item.category === 'メイン' && (item.toppings?.length ?? 0) > 0
+}
+
+function isToppingSelected(itemId: number, topping: SelectedOption) {
+  return (selectedToppings[itemId] ?? []).some((option) => option.product_id === topping.product_id)
+}
+
+function toggleTopping(itemId: number, topping: SelectedOption) {
+  const current = selectedToppings[itemId] ?? []
+
+  if (isToppingSelected(itemId, topping)) {
+    selectedToppings[itemId] = current.filter((option) => option.product_id !== topping.product_id)
+    return
+  }
+
+  selectedToppings[itemId] = [...current, topping]
 }
 
 function formatReviewDate(value?: string | null) {
@@ -154,11 +193,13 @@ function addToCart(item: MenuItem) {
     menuItemId: item.id,
     name: item.name,
     category: item.category,
-    price: item.price,
-    quantity,
-  })
+      price: item.price,
+      quantity,
+      selectedOptions: selectedToppings[item.id] ?? [],
+    })
 
   quantities[item.id] = 1
+  selectedToppings[item.id] = []
 }
 </script>
 
@@ -347,16 +388,26 @@ function addToCart(item: MenuItem) {
                 </div>
                 <p class="mt-3 text-sm font-bold leading-7 text-neutral-600">{{ item.description }}</p>
 
-                <div class="mt-4">
-                  <p class="text-xs font-black text-neutral-500">人気トッピング</p>
+                <div v-if="canSelectToppings(item)" class="mt-4">
+                  <p class="text-xs font-black text-neutral-500">トッピング</p>
                   <div class="mt-2 flex flex-wrap gap-2">
-                    <span
-                    v-for="topping in item.toppings"
-                      :key="topping"
-                      class="rounded bg-neutral-200 px-3 py-1 text-xs font-bold text-neutral-600"
+                    <button
+                      v-for="topping in item.toppings"
+                      :key="`${item.id}-${topping.product_id}`"
+                      :class="[
+                        'text-xs rounded px-3 font-bold leading-tight transition',
+                        isToppingSelected(item.id, topping)
+                          ? 'bg-red-700 text-white'
+                          : 'bg-neutral-200 text-neutral-600 hover:bg-red-50 hover:text-red-700',
+                      ]"
+                      type="button"
+                      :disabled="isSoldOut(item)"
+                      @click="toggleTopping(item.id, topping)"
                     >
-                      + {{ topping }}
-                    </span>
+                      <span class="text-xs leading-tight">
+                        + {{ topping.name }}（+{{ formatPrice(topping.price) }}）
+                      </span>
+                    </button>
                   </div>
                 </div>
 

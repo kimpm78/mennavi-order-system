@@ -59,6 +59,7 @@ const DELIVERY_STAFF_NAMES = ['佐藤A', '鈴木B'] as const
 const currentPage = ref(1)
 const selectedOrder = ref<AdminOrder | null>(null)
 const deliveryTargetOrder = ref<AdminOrder | null>(null)
+const cancelTargetOrder = ref<AdminOrder | null>(null)
 const selectedDeliveryStaffName = ref<string>(DELIVERY_STAFF_NAMES[0])
 
 const totalPages = computed(() => {
@@ -146,6 +147,10 @@ const canCancelOrder = (order: AdminOrder) => {
   return !['completed', 'canceled', 'cancelled'].includes(order.order_status ?? '')
 }
 
+const cancelActionLabel = (order: AdminOrder) => {
+  return canCancelOrder(order) ? '返品（キャンセル）' : '返品（不可）'
+}
+
 const orderKey = (order: AdminOrder) => {
   return String(order.order_id)
 }
@@ -195,11 +200,16 @@ watch(
     if (deliveryTargetOrder.value) {
       deliveryTargetOrder.value = findOrderByKey(deliveryTargetOrder.value) ?? deliveryTargetOrder.value
     }
+
+    if (cancelTargetOrder.value) {
+      cancelTargetOrder.value = findOrderByKey(cancelTargetOrder.value) ?? cancelTargetOrder.value
+    }
   },
 )
 
 const closeOrderDetail = () => {
   selectedOrder.value = null
+  cancelTargetOrder.value = null
 }
 
 const goToPage = (page: number) => {
@@ -214,6 +224,14 @@ const openDeliveryStaffModal = (order: AdminOrder) => {
 const closeDeliveryStaffModal = () => {
   deliveryTargetOrder.value = null
   selectedDeliveryStaffName.value = DELIVERY_STAFF_NAMES[0]
+}
+
+const openCancelConfirmModal = (order: AdminOrder) => {
+  cancelTargetOrder.value = order
+}
+
+const closeCancelConfirmModal = () => {
+  cancelTargetOrder.value = null
 }
 
 const requestOrderStatusUpdate = (order: AdminOrder) => {
@@ -232,6 +250,15 @@ const confirmDeliveryStart = () => {
 
   emit('updateOrderStatus', deliveryTargetOrder.value, selectedDeliveryStaffName.value)
   closeDeliveryStaffModal()
+}
+
+const confirmCancelOrder = () => {
+  if (!cancelTargetOrder.value) {
+    return
+  }
+
+  emit('cancelOrder', cancelTargetOrder.value)
+  closeCancelConfirmModal()
 }
 </script>
 
@@ -467,9 +494,9 @@ const confirmDeliveryStart = () => {
               class="h-11 rounded-lg border border-red-200 px-5 text-sm font-black text-red-700 hover:bg-red-50 disabled:opacity-50"
               type="button"
               :disabled="adminPageLoading || !canCancelOrder(selectedOrder)"
-              @click="emit('cancelOrder', selectedOrder)"
+              @click="openCancelConfirmModal(selectedOrder)"
             >
-              返品（キャンセル）
+              {{ cancelActionLabel(selectedOrder) }}
             </button>
           </div>
         </div>
@@ -517,6 +544,40 @@ const confirmDeliveryStart = () => {
             @click="confirmDeliveryStart"
           >
             配送中にする
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div
+      v-if="cancelTargetOrder"
+      class="fixed inset-0 z-[70] grid place-items-center bg-black/40 px-4"
+      @click.self="closeCancelConfirmModal"
+    >
+      <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div>
+          <p class="text-sm font-black text-red-700">返品（キャンセル）</p>
+          <h2 class="mt-1 text-xl font-black text-neutral-900">キャンセルしてもよろしいですか？</h2>
+          <p class="mt-2 text-sm font-bold leading-6 text-neutral-500">
+            注文番号 #{{ cancelTargetOrder.order_number || cancelTargetOrder.order_id }} をキャンセルします。
+          </p>
+        </div>
+
+        <div class="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            class="h-11 rounded-xl border border-neutral-200 px-5 text-sm font-black text-neutral-600 hover:bg-neutral-50"
+            @click="closeCancelConfirmModal"
+          >
+            いいえ
+          </button>
+          <button
+            type="button"
+            class="h-11 rounded-xl bg-red-700 px-5 text-sm font-black text-white hover:bg-red-800 disabled:opacity-50"
+            :disabled="adminPageLoading"
+            @click="confirmCancelOrder"
+          >
+            はい
           </button>
         </div>
       </section>

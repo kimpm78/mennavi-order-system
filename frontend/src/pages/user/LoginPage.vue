@@ -171,6 +171,7 @@ async function logout() {
   } finally {
     clearCustomerToken()
     user.value = null
+    props.goTo('/')
     loading.value = false
     successMessage.value = 'ログアウトしました。'
   }

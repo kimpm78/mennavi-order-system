@@ -11,9 +11,14 @@ class OrderItem extends Model
         'order_id',
         'product_id',
         'product_name',
+        'selected_options',
         'unit_price',
         'quantity',
         'subtotal',
+    ];
+
+    protected $casts = [
+        'selected_options' => 'array',
     ];
 
     public function order(): BelongsTo

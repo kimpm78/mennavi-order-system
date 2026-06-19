@@ -4,14 +4,9 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  CircleUserRound,
   Crown,
   Heart,
-  History,
-  Home,
-  LogOut,
   MapPinned,
-  ShoppingCart,
   Star,
   Store,
   Trash2,
@@ -150,7 +145,13 @@ type MenuItem = {
   description?: string | null
   imagePath?: string | null
   imageClass?: string
-  toppings?: string[]
+  toppings?: SelectedOption[]
+}
+
+type SelectedOption = {
+  product_id?: number | null
+  name: string
+  price: number
 }
 
 type CartItem = {
@@ -159,6 +160,8 @@ type CartItem = {
   name: string
   category?: string
   price: number
+  basePrice?: number
+  selectedOptions?: SelectedOption[]
   quantity: number
 }
 
@@ -586,6 +589,18 @@ function updateUser(user: User) {
   emit('updateUser', user)
 }
 
+function categoryDisplayLabel(category?: string | null) {
+  if (category === 'メイン') {
+    return 'ラーメン'
+  }
+
+  if (category === 'ドリンク & お酒') {
+    return 'ドリンク'
+  }
+
+  return category || ''
+}
+
 async function addCartItem(item: CartItem) {
   const currentStoreName = cartItems.value[0]?.storeName
 
@@ -606,6 +621,7 @@ async function addCartItemToCurrentCart(item: CartItem) {
         product_id: item.menuItemId,
         quantity: item.quantity,
         store_name: item.storeName,
+        selected_options: item.selectedOptions ?? [],
       }),
     },
   )
@@ -873,7 +889,7 @@ function showCartToast(message: string) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-50 pb-24 text-neutral-950 md:pb-0">
+  <div class="min-h-screen bg-neutral-50 text-neutral-950">
     <StoreDetailPage
       v-if="selectedStore"
       :store="selectedStore"
@@ -1235,86 +1251,6 @@ function showCartToast(message: string) {
     <AppFooter :go-to="goTo" />
     </template>
 
-    <nav
-      class="fixed inset-x-0 bottom-0 z-30 border-t border-red-100 bg-white px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] md:hidden"
-      aria-label="モバイルメニュー"
-    >
-      <div class="mx-auto grid max-w-md grid-cols-5 gap-1">
-        <button
-          :class="[
-            'grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
-            currentView === 'home'
-              ? 'bg-red-50 text-red-700'
-              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
-          ]"
-          type="button"
-          @click="goTo('/stores')"
-        >
-          <Home class="h-7 w-7" aria-hidden="true" />
-          <span class="mt-1">ホーム</span>
-        </button>
-
-        <button
-          :class="[
-            'grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
-            currentView === 'orderHistory'
-              ? 'bg-red-50 text-red-700'
-              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
-          ]"
-          type="button"
-          @click="openOrderHistory"
-        >
-          <History class="h-7 w-7" aria-hidden="true" />
-          <span class="mt-1">履歴</span>
-        </button>
-
-        <button
-          :class="[
-            'relative grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
-            isCartOpen
-              ? 'bg-red-50 text-red-700'
-              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
-          ]"
-          type="button"
-          @click="openCart"
-        >
-          <span class="relative">
-            <ShoppingCart class="h-7 w-7" aria-hidden="true" />
-            <span
-              v-if="cartItemCount"
-              class="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full bg-red-700 px-1 text-[10px] font-black text-white"
-            >
-              {{ cartItemCount }}
-            </span>
-          </span>
-          <span class="mt-1">カート</span>
-        </button>
-
-        <button
-          :class="[
-            'grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
-            currentView === 'delivery' && accountInitialSection === 'profile'
-              ? 'bg-red-50 text-red-700'
-              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
-          ]"
-          type="button"
-          @click="openAccountSection('profile')"
-        >
-          <CircleUserRound class="h-7 w-7" aria-hidden="true" />
-          <span class="mt-1">プロフィール</span>
-        </button>
-
-        <button
-          class="grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black text-neutral-600 transition hover:bg-red-50 hover:text-red-700"
-          type="button"
-          @click="logout"
-        >
-          <LogOut class="h-7 w-7" aria-hidden="true" />
-          <span class="mt-1">ログアウト</span>
-        </button>
-      </div>
-    </nav>
-
     <div
       v-if="toastMessage"
       class="fixed left-1/2 top-20 z-50 w-[calc(100%-32px)] max-w-xl -translate-x-1/2 rounded-lg border border-red-100 bg-white px-5 py-4 text-sm font-black text-neutral-900 shadow-xl"
@@ -1408,8 +1344,16 @@ function showCartToast(message: string) {
               <p class="text-xs font-black text-red-700">{{ item.storeName }}</p>
               <h3 class="mt-1 font-black tracking-normal">{{ item.name }}</h3>
               <p class="mt-1 text-sm font-bold text-neutral-500">
-                <span v-if="item.category">{{ item.category }} ・ </span>{{ formatPrice(item.price) }}
+                <span v-if="item.category">{{ categoryDisplayLabel(item.category) }} ・ </span>{{ formatPrice(item.price) }}
               </p>
+              <ul
+                v-if="item.selectedOptions?.length"
+                class="mt-2 space-y-1 text-xs font-bold text-neutral-500"
+              >
+                <li v-for="option in item.selectedOptions" :key="`${item.menuItemId}-${option.product_id}`">
+                  + {{ option.name }}（{{ formatPrice(option.price) }}）
+                </li>
+              </ul>
             </div>
             <button
               class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-neutral-500 hover:bg-red-50 hover:text-red-700"

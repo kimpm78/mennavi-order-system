@@ -37,10 +37,15 @@ jobs:
         working-directory: frontend
         env:
           GITHUB_PAGES: "true"
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_PAYJP_PUBLIC_KEY: ${{ vars.VITE_PAYJP_PUBLIC_KEY }}
         run: npm run build
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: frontend/dist
 

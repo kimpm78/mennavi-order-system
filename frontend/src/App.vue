@@ -16,9 +16,10 @@ onUnmounted(() => {
 
 function goTo(path: string) {
   const nextPath = normalizePath(path)
+  const nextBrowserPath = `${basePath}${getBrowserPath(path, nextPath)}`
 
-  if (currentPath.value !== nextPath) {
-    window.history.pushState({}, '', `${basePath}${nextPath}`)
+  if (window.location.pathname !== nextBrowserPath) {
+    window.history.pushState({}, '', nextBrowserPath)
   }
 
   currentPath.value = nextPath
@@ -39,6 +40,14 @@ function normalizePath(path: string) {
 
   if (normalizedPath === '/admin' || normalizedPath === '/admin/') {
     return '/admin/dashboard'
+  }
+
+  return normalizedPath
+}
+
+function getBrowserPath(path: string, normalizedPath: string) {
+  if (path === '/' || path === '') {
+    return '/'
   }
 
   return normalizedPath

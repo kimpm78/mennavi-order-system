@@ -10,7 +10,12 @@ class CartItem extends Model
     protected $fillable = [
         'cart_id',
         'product_id',
+        'selected_options',
         'quantity',
+    ];
+
+    protected $casts = [
+        'selected_options' => 'array',
     ];
 
     public function cart(): BelongsTo

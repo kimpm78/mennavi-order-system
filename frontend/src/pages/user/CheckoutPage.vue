@@ -12,7 +12,14 @@ type CartItem = {
   name: string
   category?: string
   price: number
+  selectedOptions?: SelectedOption[]
   quantity: number
+}
+
+type SelectedOption = {
+  product_id?: number | null
+  name: string
+  price: number
 }
 
 type PaymentMethod = {
@@ -431,6 +438,18 @@ function formatPrice(price: number) {
   return `¥${price.toLocaleString('ja-JP')}`
 }
 
+function categoryDisplayLabel(category?: string | null) {
+  if (category === 'メイン') {
+    return 'ラーメン'
+  }
+
+  if (category === 'ドリンク & お酒') {
+    return 'ドリンク'
+  }
+
+  return category || ''
+}
+
 function formatPaymentMethod(method: PaymentMethod) {
   const brand = method.brand ?? 'Card'
   const last4 = method.last4 ? `**** **** **** ${method.last4}` : '登録済みカード'
@@ -490,8 +509,16 @@ function formatPaymentMethod(method: PaymentMethod) {
           <div>
             <h2 class="text-2xl font-black tracking-normal">{{ item.name }}</h2>
             <p class="mt-2 text-sm font-bold text-neutral-500">
-              {{ item.storeName }}<span v-if="item.category"> ・ {{ item.category }}</span>
+              {{ item.storeName }}<span v-if="item.category"> ・ {{ categoryDisplayLabel(item.category) }}</span>
             </p>
+            <ul
+              v-if="item.selectedOptions?.length"
+              class="mt-3 space-y-1 text-xs font-bold text-neutral-500"
+            >
+              <li v-for="option in item.selectedOptions" :key="`${item.menuItemId}-${option.product_id}`">
+                + {{ option.name }}（{{ formatPrice(option.price) }}）
+              </li>
+            </ul>
             <p class="mt-4 text-2xl font-black text-red-700">{{ formatPrice(item.price) }}</p>
           </div>
 
