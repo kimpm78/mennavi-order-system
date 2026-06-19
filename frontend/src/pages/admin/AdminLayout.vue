@@ -4,20 +4,11 @@
 
 import AdminHeader from '../../components/admin/AdminHeader.vue'
 import AdminSidebar from '../../components/admin/AdminSidebar.vue'
-import type { AdminPageKey } from './adminTypes'
+import type { AdminNotification, AdminPageKey } from './adminTypes'
 
 type AdminUser = {
   name?: string | null
   email?: string | null
-}
-
-type AdminNotification = {
-  id: string
-  orderId?: number | string
-  title: string
-  message: string
-  tone: 'order' | 'success' | 'warning'
-  time?: string
 }
 
 defineProps<{

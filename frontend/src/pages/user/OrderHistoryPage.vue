@@ -34,6 +34,7 @@ type OrderHistory = {
   payment_method?: string | null
   delivery_staff_name?: string | null
   store_name?: string | null
+  store_invoice_number?: string | null
   review?: {
     id: number
     rating: number
@@ -273,6 +274,19 @@ function orderSubtotal(order: OrderHistory) {
   return order.subtotal_amount ?? order.items.reduce((total, item) => total + item.subtotal, 0)
 }
 
+function membershipDiscountLabel(order: OrderHistory) {
+  const rate = order.membership_discount_rate ?? 0
+  return rate > 0 ? `麺ナビ Plus ${Number(rate).toLocaleString('ja-JP')}%割引` : '麺ナビ Plus 割引'
+}
+
+function effectiveDeliveryFee(order: OrderHistory) {
+  return Math.max((order.delivery_fee ?? 0) - (order.delivery_discount_amount ?? 0), 0)
+}
+
+function hasPlusBenefit(order: OrderHistory) {
+  return Boolean((order.membership_discount_amount ?? 0) > 0 || (order.delivery_discount_amount ?? 0) > 0)
+}
+
 function clearFilters() {
   filters.status = ''
   filters.paymentMethod = ''
@@ -330,7 +344,250 @@ function closeOrderModal() {
 }
 
 function printReceipt() {
-  window.print()
+  const order = selectedReceiptOrder.value
+  const receiptContent = document.querySelector<HTMLElement>('.receipt-print-content')
+
+  if (!order || !receiptContent) {
+    return
+  }
+
+  const iframe = document.createElement('iframe')
+  const documentTitle = receiptDocumentTitle(order)
+  iframe.title = documentTitle
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+  iframe.style.opacity = '0'
+  document.body.appendChild(iframe)
+
+  const printDocument = iframe.contentDocument ?? iframe.contentWindow?.document
+  if (!printDocument) {
+    iframe.remove()
+    return
+  }
+
+  printDocument.open()
+  printDocument.write(`
+    <!doctype html>
+    <html lang="ja">
+      <head>
+        <meta charset="UTF-8" />
+        <title>${escapeHtml(documentTitle)}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 14mm;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            background: #fff;
+            color: #171717;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          }
+
+          .receipt-print-content {
+            width: 100%;
+            max-width: 680px;
+            margin: 0 auto;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 24px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .flex {
+            display: flex;
+          }
+
+          .grid {
+            display: grid;
+          }
+
+          .justify-between {
+            justify-content: space-between;
+          }
+
+          .items-start {
+            align-items: flex-start;
+          }
+
+          .gap-3 {
+            gap: 12px;
+          }
+
+          .gap-4 {
+            gap: 16px;
+          }
+
+          .gap-5 {
+            gap: 20px;
+          }
+
+          .mt-1 {
+            margin-top: 4px;
+          }
+
+          .mt-3 {
+            margin-top: 12px;
+          }
+
+          .mt-5 {
+            margin-top: 20px;
+          }
+
+          .mt-6 {
+            margin-top: 24px;
+          }
+
+          .pb-5 {
+            padding-bottom: 20px;
+          }
+
+          .pt-5 {
+            padding-top: 20px;
+          }
+
+          .p-5 {
+            padding: 20px;
+          }
+
+          .px-4 {
+            padding-left: 16px;
+            padding-right: 16px;
+          }
+
+          .py-3 {
+            padding-top: 12px;
+            padding-bottom: 12px;
+          }
+
+          .rounded-lg {
+            border-radius: 8px;
+          }
+
+          .border {
+            border: 1px solid #e5e5e5;
+          }
+
+          .border-b,
+          .border-t {
+            border-color: #e5e5e5;
+          }
+
+          .border-b {
+            border-bottom: 1px solid #e5e5e5;
+          }
+
+          .border-t {
+            border-top: 1px solid #e5e5e5;
+          }
+
+          .bg-neutral-50,
+          .bg-red-50 {
+            background: #fafafa;
+          }
+
+          .text-right {
+            text-align: right;
+          }
+
+          .text-sm {
+            font-size: 14px;
+          }
+
+          .text-xs {
+            font-size: 12px;
+          }
+
+          .text-lg {
+            font-size: 18px;
+          }
+
+          .text-xl {
+            font-size: 20px;
+          }
+
+          .text-4xl {
+            font-size: 36px;
+            line-height: 1.1;
+          }
+
+          .font-bold {
+            font-weight: 700;
+          }
+
+          .font-black {
+            font-weight: 900;
+          }
+
+          .text-neutral-500,
+          .text-neutral-600,
+          .text-neutral-700 {
+            color: #525252;
+          }
+
+          .text-neutral-900 {
+            color: #171717;
+          }
+
+          .text-red-700 {
+            color: #b91c1c;
+          }
+
+          dl {
+            margin: 0;
+          }
+
+          dt,
+          dd,
+          p {
+            margin: 0;
+          }
+        </style>
+      </head>
+      <body>${receiptContent.outerHTML}</body>
+    </html>
+  `)
+  printDocument.close()
+
+  const printWindow = iframe.contentWindow
+  const cleanup = () => window.setTimeout(() => iframe.remove(), 500)
+
+  window.setTimeout(() => {
+    printWindow?.focus()
+    printWindow?.print()
+    cleanup()
+  }, 100)
+}
+
+function receiptDocumentTitle(order: OrderHistory) {
+  return [
+    order.order_number,
+    order.store_invoice_number || 'インボイス番号未登録',
+    order.store_name || '店舗名未登録',
+  ].map(sanitizeReceiptFilePart).join('-')
+}
+
+function sanitizeReceiptFilePart(value: string) {
+  return value.replace(/[\\/:*?"<>|]/g, '_').trim()
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 function reviewForm(order: OrderHistory) {
@@ -853,6 +1110,17 @@ async function submitReview(order: OrderHistory) {
         <p class="mt-1 text-xl font-black text-neutral-900">お客様</p>
       </div>
 
+      <dl class="mt-6 rounded-lg border border-neutral-200 px-4 py-3 text-sm font-bold text-neutral-700">
+        <div class="flex justify-between gap-4">
+          <dt>店舗名</dt>
+          <dd class="font-black text-neutral-900">{{ selectedReceiptOrder.store_name ?? '-' }}</dd>
+        </div>
+        <div class="mt-3 flex justify-between gap-4">
+          <dt>インボイス番号</dt>
+          <dd class="font-black text-neutral-900">{{ selectedReceiptOrder.store_invoice_number ?? '未登録' }}</dd>
+        </div>
+      </dl>
+
       <div class="mt-6 rounded-lg bg-neutral-50 p-5">
         <p class="text-sm font-bold text-neutral-500">但し書き</p>
         <p class="mt-1 font-black text-neutral-900">飲食代として</p>
@@ -873,13 +1141,33 @@ async function submitReview(order: OrderHistory) {
           <dt>小計</dt>
           <dd>{{ formatPrice(orderSubtotal(selectedReceiptOrder)) }}</dd>
         </div>
+        <div
+          v-if="(selectedReceiptOrder.membership_discount_amount ?? 0) > 0"
+          class="flex justify-between gap-4 text-red-700"
+        >
+          <dt>{{ membershipDiscountLabel(selectedReceiptOrder) }}</dt>
+          <dd>-{{ formatPrice(selectedReceiptOrder.membership_discount_amount ?? 0) }}</dd>
+        </div>
         <div class="flex justify-between gap-4">
           <dt>配送料</dt>
           <dd>{{ selectedReceiptOrder.delivery_fee ? formatPrice(selectedReceiptOrder.delivery_fee) : '無料' }}</dd>
         </div>
+        <div
+          v-if="(selectedReceiptOrder.delivery_discount_amount ?? 0) > 0"
+          class="flex justify-between gap-4 text-red-700"
+        >
+          <dt>麺ナビ Plus 送料無料特典</dt>
+          <dd>-{{ formatPrice(selectedReceiptOrder.delivery_discount_amount ?? 0) }}</dd>
+        </div>
         <div class="flex justify-between gap-4">
           <dt>税金</dt>
           <dd>{{ formatPrice(selectedReceiptOrder.tax_amount ?? 0) }}</dd>
+        </div>
+        <div
+          v-if="hasPlusBenefit(selectedReceiptOrder)"
+          class="rounded-lg bg-red-50 px-4 py-3 text-xs font-black text-red-700"
+        >
+          麺ナビ Plus特典が適用されています。
         </div>
       </dl>
 
@@ -990,13 +1278,40 @@ async function submitReview(order: OrderHistory) {
         <dt>小計</dt>
         <dd>{{ formatPrice(orderSubtotal(selectedDetailOrder)) }}</dd>
       </div>
+      <div
+        v-if="(selectedDetailOrder.membership_discount_amount ?? 0) > 0"
+        class="flex justify-between text-red-700"
+      >
+        <dt>{{ membershipDiscountLabel(selectedDetailOrder) }}</dt>
+        <dd>-{{ formatPrice(selectedDetailOrder.membership_discount_amount ?? 0) }}</dd>
+      </div>
       <div class="flex justify-between">
         <dt>配送料</dt>
         <dd>{{ selectedDetailOrder.delivery_fee ? formatPrice(selectedDetailOrder.delivery_fee) : '無料' }}</dd>
       </div>
+      <div
+        v-if="(selectedDetailOrder.delivery_discount_amount ?? 0) > 0"
+        class="flex justify-between text-red-700"
+      >
+        <dt>麺ナビ Plus 送料無料特典</dt>
+        <dd>-{{ formatPrice(selectedDetailOrder.delivery_discount_amount ?? 0) }}</dd>
+      </div>
+      <div
+        v-if="(selectedDetailOrder.delivery_discount_amount ?? 0) > 0"
+        class="flex justify-between"
+      >
+        <dt>配送料適用後</dt>
+        <dd>{{ effectiveDeliveryFee(selectedDetailOrder) ? formatPrice(effectiveDeliveryFee(selectedDetailOrder)) : '無料' }}</dd>
+      </div>
       <div class="flex justify-between">
         <dt>税金</dt>
         <dd>{{ formatPrice(selectedDetailOrder.tax_amount ?? 0) }}</dd>
+      </div>
+      <div
+        v-if="hasPlusBenefit(selectedDetailOrder)"
+        class="rounded-lg bg-red-50 px-4 py-3 text-xs font-black text-red-700"
+      >
+        麺ナビ Plus特典が適用されています。
       </div>
       <div class="flex justify-between text-lg font-black text-neutral-900">
         <dt>合計</dt>
@@ -1029,14 +1344,20 @@ async function submitReview(order: OrderHistory) {
     overflow: visible !important;
   }
 
-  main,
-  .fixed.inset-0 {
-    display: none !important;
+  body * {
+    visibility: hidden !important;
+  }
+
+  .receipt-print-root,
+  .receipt-print-root * {
+    visibility: visible !important;
   }
 
   .receipt-print-root {
     display: block !important;
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     inset: auto !important;
     width: 100% !important;
     max-width: none !important;
@@ -1056,6 +1377,7 @@ async function submitReview(order: OrderHistory) {
   .receipt-print-content {
     margin: 0 !important;
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 </style>

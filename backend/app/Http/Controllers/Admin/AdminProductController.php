@@ -26,6 +26,7 @@ class AdminProductController extends AdminBaseController
                     'description',
                     'address',
                     'phone',
+                    'invoice_number',
                     'weekday_hours',
                     'weekend_hours',
                     'holiday',
@@ -59,11 +60,14 @@ class AdminProductController extends AdminBaseController
             return response()->json(['message' => '管理者認証が必要です。'], 401);
         }
 
+        $this->normalizeInvoiceNumber($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:1000'],
             'address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:20'],
+            'invoice_number' => ['nullable', 'string', 'regex:/^T\\d{13}$/'],
             'weekday_hours' => ['nullable', 'string', 'max:100'],
             'weekend_hours' => ['nullable', 'string', 'max:100'],
             'holiday' => ['nullable', 'string', 'max:100'],
@@ -87,11 +91,14 @@ class AdminProductController extends AdminBaseController
             return response()->json(['message' => '管理者認証が必要です。'], 401);
         }
 
+        $this->normalizeInvoiceNumber($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:1000'],
             'address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:20'],
+            'invoice_number' => ['nullable', 'string', 'regex:/^T\\d{13}$/'],
             'weekday_hours' => ['nullable', 'string', 'max:100'],
             'weekend_hours' => ['nullable', 'string', 'max:100'],
             'holiday' => ['nullable', 'string', 'max:100'],
@@ -205,6 +212,19 @@ class AdminProductController extends AdminBaseController
         return response()->json([
             'store' => $store->fresh(),
             'image_path' => $store->image_path,
+        ]);
+    }
+
+    private function normalizeInvoiceNumber(Request $request): void
+    {
+        if (! $request->has('invoice_number')) {
+            return;
+        }
+
+        $invoiceNumber = trim((string) $request->input('invoice_number'));
+
+        $request->merge([
+            'invoice_number' => $invoiceNumber === '' ? null : Str::upper($invoiceNumber),
         ]);
     }
 }

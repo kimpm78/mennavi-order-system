@@ -1,6 +1,22 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, ChevronLeft, ChevronRight, Crown, Heart, MapPinned, Star, Store, Trash2, X } from 'lucide-vue-next'
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  CircleUserRound,
+  Crown,
+  Heart,
+  History,
+  Home,
+  LogOut,
+  MapPinned,
+  ShoppingCart,
+  Star,
+  Store,
+  Trash2,
+  X,
+} from 'lucide-vue-next'
 import FallbackImage from '@/components/common/FallbackImage.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
@@ -58,6 +74,8 @@ const toastMessage = ref('')
 const nearbyScroller = ref<HTMLElement | null>(null)
 const favoriteStoreIds = ref<Set<number>>(new Set())
 const plusReturnPath = ref('/stores')
+const userOrderNotifications = ref<UserOrderNotification[]>([])
+const readUserOrderNotificationIds = ref<Set<string>>(new Set())
 const mainVisualSetting = ref<MainVisualSetting>({
   title: '今日の一杯を見つけよう',
   description: '厳選された究極のラーメン店ガイド。あなたの気分に合わせた最高の一杯をご提案します。',
@@ -66,6 +84,7 @@ const mainVisualSetting = ref<MainVisualSetting>({
 let cartResetTimer: number | undefined
 let cartClockTimer: number | undefined
 let toastTimer: number | undefined
+let orderNotificationTimer: number | undefined
 
 type StoreSummary = {
   id: number
@@ -105,6 +124,21 @@ type UserSubscription = {
   status?: string
   current_period_end?: string | null
   cancel_at_period_end?: boolean
+}
+
+type UserOrderNotification = {
+  id: string
+  title: string
+  message: string
+  tone: 'order' | 'cooking' | 'delivery'
+  time?: string
+}
+
+type UserOrderSummary = {
+  id: number
+  order_number: string
+  order_status: string
+  ordered_at?: string | null
 }
 
 type MenuItem = {
@@ -251,6 +285,8 @@ onMounted(() => {
   loadFavoriteStores()
   loadMainVisualSetting()
   loadUserSubscription()
+  loadUserOrderNotifications()
+  orderNotificationTimer = window.setInterval(loadUserOrderNotifications, 30000)
   syncPathToView(props.currentPath)
 })
 
@@ -267,6 +303,9 @@ onBeforeUnmount(() => {
   }
   if (toastTimer) {
     window.clearTimeout(toastTimer)
+  }
+  if (orderNotificationTimer) {
+    window.clearInterval(orderNotificationTimer)
   }
 })
 
@@ -476,6 +515,15 @@ function openOrderHistory() {
   goTo('/orders')
 }
 
+function openOrderHistoryFromNotification(notification: UserOrderNotification) {
+  readUserOrderNotificationIds.value = new Set([
+    ...readUserOrderNotificationIds.value,
+    notification.id,
+  ])
+  userOrderNotifications.value = userOrderNotifications.value.filter((item) => item.id !== notification.id)
+  openOrderHistory()
+}
+
 function openTop() {
   goTo('/stores')
 }
@@ -628,6 +676,8 @@ function logout() {
   cartExpiresAt.value = null
   favoriteStoreIds.value = new Set()
   userSubscription.value = null
+  userOrderNotifications.value = []
+  readUserOrderNotificationIds.value = new Set()
   isCartOpen.value = false
   emit('logout')
 }
@@ -658,7 +708,69 @@ function completeOrder() {
   cartExpiresAt.value = null
   props.goTo('/order-complete')
   currentView.value = 'orderComplete'
+  loadUserOrderNotifications()
   window.scrollTo({ top: 0 })
+}
+
+async function loadUserOrderNotifications() {
+  const token = getCustomerToken()
+  if (!token) {
+    userOrderNotifications.value = []
+    return
+  }
+
+  try {
+    const response = await apiRequest<{ orders: UserOrderSummary[] }>('/orders', {
+      headers: authHeaders(token),
+    })
+
+    userOrderNotifications.value = response.orders
+      .filter((order) => ['received', 'cooking', 'delivering'].includes(order.order_status))
+      .map(orderNotificationFromOrder)
+      .filter((notification) => !readUserOrderNotificationIds.value.has(notification.id))
+      .slice(0, 5)
+  } catch {
+    userOrderNotifications.value = []
+  }
+}
+
+function orderNotificationFromOrder(order: UserOrderSummary): UserOrderNotification {
+  const titleMap: Record<string, UserOrderNotification['title']> = {
+    received: '注文受付',
+    cooking: '調理開始',
+    delivering: '受け取り',
+  }
+  const toneMap: Record<string, UserOrderNotification['tone']> = {
+    received: 'order',
+    cooking: 'cooking',
+    delivering: 'delivery',
+  }
+  const messageMap: Record<string, string> = {
+    received: `注文 #${order.order_number} を受け付けました。`,
+    cooking: `注文 #${order.order_number} の調理が開始されました。`,
+    delivering: `注文 #${order.order_number} は配送中です。商品を受け取ったら注文履歴から受け取り完了できます。`,
+  }
+
+  return {
+    id: `${order.order_status}-${order.id}`,
+    title: titleMap[order.order_status] ?? '注文通知',
+    message: messageMap[order.order_status] ?? `注文 #${order.order_number} の状況を確認してください。`,
+    tone: toneMap[order.order_status] ?? 'order',
+    time: formatNotificationTime(order.ordered_at),
+  }
+}
+
+function formatNotificationTime(value?: string | null) {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 function formatPrice(price: number) {
@@ -761,7 +873,7 @@ function showCartToast(message: string) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-50 text-neutral-950">
+  <div class="min-h-screen bg-neutral-50 pb-24 text-neutral-950 md:pb-0">
     <StoreDetailPage
       v-if="selectedStore"
       :store="selectedStore"
@@ -783,8 +895,10 @@ function showCartToast(message: string) {
       :is-authenticated="true"
       :is-plus-member="isPlusMember"
       :cart-count="cartItemCount"
+      :order-notifications="userOrderNotifications"
       :active-nav="headerActiveNav"
       @open-cart="openCart"
+      @open-order-notification="openOrderHistoryFromNotification"
       @open-account-section="openAccountSection"
       @brand-click="closeDeliveryInfo"
       @stores-click="goTo('/stores')"
@@ -1120,6 +1234,86 @@ function showCartToast(message: string) {
 
     <AppFooter :go-to="goTo" />
     </template>
+
+    <nav
+      class="fixed inset-x-0 bottom-0 z-30 border-t border-red-100 bg-white px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] md:hidden"
+      aria-label="モバイルメニュー"
+    >
+      <div class="mx-auto grid max-w-md grid-cols-5 gap-1">
+        <button
+          :class="[
+            'grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
+            currentView === 'home'
+              ? 'bg-red-50 text-red-700'
+              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
+          ]"
+          type="button"
+          @click="goTo('/stores')"
+        >
+          <Home class="h-7 w-7" aria-hidden="true" />
+          <span class="mt-1">ホーム</span>
+        </button>
+
+        <button
+          :class="[
+            'grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
+            currentView === 'orderHistory'
+              ? 'bg-red-50 text-red-700'
+              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
+          ]"
+          type="button"
+          @click="openOrderHistory"
+        >
+          <History class="h-7 w-7" aria-hidden="true" />
+          <span class="mt-1">履歴</span>
+        </button>
+
+        <button
+          :class="[
+            'relative grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
+            isCartOpen
+              ? 'bg-red-50 text-red-700'
+              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
+          ]"
+          type="button"
+          @click="openCart"
+        >
+          <span class="relative">
+            <ShoppingCart class="h-7 w-7" aria-hidden="true" />
+            <span
+              v-if="cartItemCount"
+              class="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full bg-red-700 px-1 text-[10px] font-black text-white"
+            >
+              {{ cartItemCount }}
+            </span>
+          </span>
+          <span class="mt-1">カート</span>
+        </button>
+
+        <button
+          :class="[
+            'grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black transition',
+            currentView === 'delivery' && accountInitialSection === 'profile'
+              ? 'bg-red-50 text-red-700'
+              : 'text-neutral-600 hover:bg-red-50 hover:text-red-700',
+          ]"
+          type="button"
+          @click="openAccountSection('profile')"
+        >
+          <CircleUserRound class="h-7 w-7" aria-hidden="true" />
+          <span class="mt-1">プロフィール</span>
+        </button>
+
+        <button
+          class="grid min-h-16 place-items-center rounded-2xl px-2 py-2 text-xs font-black text-neutral-600 transition hover:bg-red-50 hover:text-red-700"
+          type="button"
+          @click="logout"
+        >
+          <LogOut class="h-7 w-7" aria-hidden="true" />
+          <span class="mt-1">ログアウト</span>
+        </button>
+      </div>
+    </nav>
 
     <div
       v-if="toastMessage"

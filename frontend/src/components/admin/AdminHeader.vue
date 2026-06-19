@@ -1,20 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Bell, LogOut, Menu, UserCircle } from 'lucide-vue-next'
-import type { AdminPageKey } from '@/pages/admin/adminTypes'
+import type { AdminNotification, AdminPageKey } from '@/pages/admin/adminTypes'
 
 type AdminUser = {
   name?: string | null
   email?: string | null
-}
-
-type AdminNotification = {
-  id: string
-  orderId?: number | string
-  title: string
-  message: string
-  tone?: 'order' | 'success' | 'warning'
-  time?: string
 }
 
 const props = defineProps<{

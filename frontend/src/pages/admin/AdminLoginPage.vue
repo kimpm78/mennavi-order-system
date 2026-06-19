@@ -15,7 +15,7 @@ import AdminStoreCreatePage from './AdminStoreCreatePage.vue'
 import { apiRequest, authHeaders } from '../../lib/api'
 import { getAdminToken } from '../../lib/authStorage'
 import { useAdminPage } from './useAdminPage'
-import type { ActiveOrderFilterKey, AdminPageKey, DashboardOrderView } from './adminTypes'
+import type { ActiveOrderFilterKey, AdminNotification, AdminPageKey, DashboardOrderView } from './adminTypes'
 
 const props = defineProps<{
   currentPath: string
@@ -33,15 +33,6 @@ const adminPagePaths: Record<AdminPageKey, string> = {
 }
 
 const routeAdminPage = computed(() => adminPageFromPath(props.currentPath))
-
-type AdminNotification = {
-  id: string
-  orderId: number | string
-  title: string
-  message: string
-  tone: 'order' | 'success' | 'warning'
-  time?: string
-}
 
 const readNotificationIds = ref<Set<string>>(new Set())
 const pendingOrderDetailId = ref<number | string | null>(null)
@@ -188,7 +179,7 @@ const adminNotifications = computed<AdminNotification[]>(() => {
 async function handleOpenNotification(notification: AdminNotification) {
   readNotificationIds.value = new Set([...readNotificationIds.value, notification.id])
   await saveReadNotificationId(notification.id).catch(() => undefined)
-  pendingOrderDetailId.value = notification.orderId
+  pendingOrderDetailId.value = notification.orderId ?? null
   await selectAdminPage('orders')
 }
 

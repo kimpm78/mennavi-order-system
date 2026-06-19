@@ -55,7 +55,8 @@ class OrderController extends Controller
                 'delivered_at' => $order->delivered_at?->toISOString(),
                 'received_at' => $order->received_at?->toISOString(),
                 'store_id' => $order->items->first()?->product?->store_id,
-                'store_name' => $order->items->first()?->product?->store?->name,
+                'store_name' => $order->store_name_snapshot ?? $order->items->first()?->product?->store?->name,
+                'store_invoice_number' => $order->store_invoice_number,
                 'review' => $order->reviews->first()
                     ? [
                         'id' => $order->reviews->first()->id,
@@ -98,7 +99,7 @@ class OrderController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $cart = $user->carts()->with('items.product.category')->first();
+        $cart = $user->carts()->with(['items.product.category', 'items.product.store'])->first();
         if (! $cart || ! $cart->items->count()) {
             return response()->json(['message' => 'カートが空です。'], 422);
         }
@@ -161,6 +162,8 @@ class OrderController extends Controller
         $earnedPoints = $this->calculateEarnedPoints($pricing['total_amount']);
 
         $order = DB::transaction(function () use ($user, $cart, $pricing, $validated, $charge, $cardSnapshot, $paymentMethod, $paymentProvider, $paymentStatus, $selectedPaymentMethod, $earnedPoints): Order {
+            $store = $cart->items->first()?->product?->store;
+
             $order = Order::create([
                 'order_number' => $this->generateOrderNumber(),
                 'user_id' => $user->id,
@@ -168,6 +171,8 @@ class OrderController extends Controller
                 'customer_name' => $user->name,
                 'customer_email' => $user->email,
                 'customer_phone' => $user->phone,
+                'store_name_snapshot' => $store?->name ?? $cart->store_name,
+                'store_invoice_number' => $store?->invoice_number,
                 'receipt_type' => $pricing['receipt_type'],
                 'subtotal_amount' => $pricing['subtotal_amount'],
                 'membership_discount_rate' => $pricing['membership_discount_rate'],
@@ -563,6 +568,8 @@ class OrderController extends Controller
             'ordered_at' => $order->ordered_at?->toISOString(),
             'delivered_at' => $order->delivered_at?->toISOString(),
             'received_at' => $order->received_at?->toISOString(),
+            'store_name' => $order->store_name_snapshot ?? $order->items->first()?->product?->store?->name,
+            'store_invoice_number' => $order->store_invoice_number,
             'items' => $order->items->map(fn ($item) => [
                 'id' => $item->id,
                 'product_id' => $item->product_id,

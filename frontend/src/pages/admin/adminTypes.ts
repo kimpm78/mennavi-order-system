@@ -2,6 +2,15 @@ export type AdminPageKey = 'dashboard' | 'orders' | 'contactMessages' | 'menus' 
 export type ActiveOrderFilterKey = 'all' | 'received' | 'cooking' | 'delivering'
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
+export type AdminNotification = {
+  id: string
+  orderId?: number | string
+  title: string
+  message: string
+  tone: 'order' | 'success' | 'warning'
+  time?: string
+}
+
 export type AdminOrderRow = {
   id?: number
   number?: string
@@ -48,6 +57,7 @@ export type AdminStoreRow = {
   description?: string | null
   address?: string | null
   phone?: string | null
+  invoice_number?: string | null
   weekday_hours?: string | null
   weekend_hours?: string | null
   holiday?: string | null

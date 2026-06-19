@@ -15,6 +15,7 @@ class Store extends Model
         'description',
         'address',
         'phone',
+        'invoice_number',
         'weekday_hours',
         'weekend_hours',
         'holiday',
