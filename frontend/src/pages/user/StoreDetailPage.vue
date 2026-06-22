@@ -5,6 +5,14 @@ import FallbackImage from '@/components/common/FallbackImage.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 
+type UserOrderNotification = {
+  id: string
+  title: string
+  message: string
+  tone: 'order' | 'cooking' | 'delivery'
+  time?: string
+}
+
 const props = defineProps<{
   store: {
     name: string
@@ -27,6 +35,8 @@ const props = defineProps<{
   cartRemainingText?: string
   backLabel?: string
   activeNav?: 'stores' | 'favorites' | ''
+  isPlusMember?: boolean
+  orderNotifications?: UserOrderNotification[]
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +44,7 @@ const emit = defineEmits<{
   logout: []
   openCart: []
   navigatePage: [path: string]
+  openOrderNotification: [notification: UserOrderNotification]
   openAccountSection: [section: 'profile' | 'orders' | 'delivery']
   addCart: [item: CartItem]
 }>()
@@ -208,9 +219,12 @@ function addToCart(item: MenuItem) {
     <AppHeader
       v-model:search-query="searchQuery"
       :is-authenticated="true"
+      :is-plus-member="isPlusMember"
       :cart-count="cartCount"
+      :order-notifications="orderNotifications"
       :active-nav="activeNav ?? 'stores'"
       @open-cart="emit('openCart')"
+      @open-order-notification="emit('openOrderNotification', $event)"
       @open-account-section="emit('openAccountSection', $event)"
       @brand-click="emit('back')"
       @stores-click="emit('navigatePage', '/stores')"
@@ -265,9 +279,9 @@ function addToCart(item: MenuItem) {
         </div>
       </section>
 
-      <div class="mt-8 grid gap-6 lg:grid-cols-[392px_minmax(0,1fr)]">
-        <aside class="space-y-6">
-          <section class="rounded-lg border border-red-200 bg-white p-6">
+      <div class="mt-8 grid min-w-0 gap-6 lg:grid-cols-[392px_minmax(0,1fr)]">
+        <aside class="min-w-0 space-y-6">
+          <section class="min-w-0 rounded-lg border border-red-200 bg-white p-4 sm:p-6">
             <h2 class="flex items-center gap-2 text-2xl font-black tracking-normal">
               <Info class="h-6 w-6 text-red-700" />
               店舗情報
@@ -295,11 +309,11 @@ function addToCart(item: MenuItem) {
 
               <div class="border-t border-red-100 pt-5">
                 <p class="font-bold text-neutral-500">所在地</p>
-                <p class="mt-2 flex items-center gap-2 font-bold">
+                <p class="mt-2 flex min-w-0 items-start gap-2 break-words font-bold">
                   <MapPin class="h-4 w-4 text-red-700" />
-                  {{ store.address ?? '所在地未設定' }}
+                  <span class="min-w-0">{{ store.address ?? '所在地未設定' }}</span>
                 </p>
-                <div class="store-map mt-3">
+                <div class="store-map mt-3 w-full max-w-full">
                   <iframe
                     v-if="store.address"
                     class="h-full w-full"
@@ -334,10 +348,10 @@ function addToCart(item: MenuItem) {
             </div>
           </section>
 
-          <section class="rounded-lg bg-amber-100 p-6 text-neutral-900">
+          <section class="min-w-0 rounded-lg bg-amber-100 p-4 text-neutral-900 sm:p-6">
             <div class="flex gap-4">
               <Utensils class="mt-1 h-8 w-8 shrink-0 text-amber-900" />
-              <div>
+              <div class="min-w-0">
                 <h2 class="text-lg font-black tracking-normal">シェフのこだわり</h2>
                 <p class="mt-2 text-sm font-bold leading-6">
                   受賞歴のある特製醤油ブレンドを、ぜひ本日お試しください。
@@ -347,8 +361,8 @@ function addToCart(item: MenuItem) {
           </section>
         </aside>
 
-        <section>
-          <div class="flex gap-3 overflow-x-auto pb-2" aria-label="メニューカテゴリ">
+        <section class="min-w-0">
+          <div class="flex min-w-0 max-w-full gap-3 overflow-x-auto pb-2" aria-label="メニューカテゴリ">
             <button
               v-for="category in categories"
               :key="category"
@@ -365,11 +379,11 @@ function addToCart(item: MenuItem) {
             </button>
           </div>
 
-          <div class="mt-5 grid gap-6 xl:grid-cols-2">
+          <div class="mt-5 grid min-w-0 gap-6 xl:grid-cols-2">
             <article
               v-for="item in filteredMenuItems"
               :key="item.id"
-              class="overflow-hidden rounded-lg border border-red-200 bg-white shadow-sm"
+              class="min-w-0 overflow-hidden rounded-lg border border-red-200 bg-white shadow-sm"
             >
               <div class="relative h-[196px] overflow-hidden bg-neutral-100">
                 <FallbackImage :src="item.imagePath" :alt="`${item.name}の画像`" />
