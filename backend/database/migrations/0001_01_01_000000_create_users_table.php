@@ -21,8 +21,8 @@ return new class extends Migration
             $table->string('phone', 20)->nullable();
             $table->string('postal_code', 10)->nullable();
             $table->string('address')->nullable();
-            $table->string('role', 20)->default('user')->index();
-            $table->string('status', 20)->default('active')->index();
+            $table->string('role', 20)->default('user');
+            $table->string('status', 20)->default('active');
             $table->integer('point_balance')->default(0);
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('last_login_at')->nullable();
