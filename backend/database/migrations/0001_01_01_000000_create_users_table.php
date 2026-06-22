@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id()->comment('ユーザーID');
             $table->string('name', 100)->comment('氏名');
-            $table->string('email')->unique()->comment('メールアドレス');
+            $table->string('email')->comment('メールアドレス');
             $table->string('password')->comment('パスワード');
             $table->string('phone', 20)->nullable()->comment('電話番号');
             $table->string('postal_code', 10)->nullable()->comment('郵便番号');
@@ -29,6 +29,9 @@ return new class extends Migration
             $table->rememberToken()->comment('ログイン保持トークン');
             $table->timestamps();
             $table->softDeletes()->comment('削除日時');
+
+            // PostgreSQL環境で自動生成される制約名の衝突を避けるため、メールアドレスの一意制約名を明示する
+            $table->unique('email', 'users_email_order_system_unique');
         });
 
         // セッションテーブルの作成
