@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\ImageStorageService;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Store;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AdminProductController extends AdminBaseController
@@ -165,7 +165,7 @@ class AdminProductController extends AdminBaseController
         return response()->json(['message' => 'メニューを削除しました。']);
     }
 
-    public function uploadProductImage(Request $request, Product $product): JsonResponse
+    public function uploadProductImage(Request $request, Product $product, ImageStorageService $imageStorage): JsonResponse
     {
         if (! $this->authenticatedAdmin($request)) {
             return response()->json(['message' => '管理者認証が必要です。'], 401);
@@ -176,13 +176,10 @@ class AdminProductController extends AdminBaseController
         ]);
 
         $file = $validated['image'];
-        $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
         $productSlug = Str::slug($product->name) ?: 'product';
         $productCode = $product->id.'_'.$productSlug;
-        $fileName = now()->format('Ymd_His').'_'.Str::random(8).'.'.$extension;
-        $path = $file->storeAs("product/{$productCode}", $fileName, 'public');
 
-        $product->update(['image_path' => Storage::url($path)]);
+        $product->update(['image_path' => $imageStorage->upload($file, "product/{$productCode}")]);
 
         return response()->json([
             'product' => $product->fresh(['store', 'category']),
@@ -190,7 +187,7 @@ class AdminProductController extends AdminBaseController
         ]);
     }
 
-    public function uploadStoreImage(Request $request, Store $store): JsonResponse
+    public function uploadStoreImage(Request $request, Store $store, ImageStorageService $imageStorage): JsonResponse
     {
         if (! $this->authenticatedAdmin($request)) {
             return response()->json(['message' => '管理者認証が必要です。'], 401);
@@ -201,13 +198,10 @@ class AdminProductController extends AdminBaseController
         ]);
 
         $file = $validated['image'];
-        $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
         $storeSlug = Str::slug($store->name) ?: 'store';
         $storeCode = $store->id.'_'.$storeSlug;
-        $fileName = now()->format('Ymd_His').'_'.Str::random(8).'.'.$extension;
-        $path = $file->storeAs("store/{$storeCode}", $fileName, 'public');
 
-        $store->update(['image_path' => Storage::url($path)]);
+        $store->update(['image_path' => $imageStorage->upload($file, "store/{$storeCode}")]);
 
         return response()->json([
             'store' => $store->fresh(),

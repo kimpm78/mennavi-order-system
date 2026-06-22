@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Models\MainVisualSetting;
+use App\Services\ImageStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class AdminSettingController extends AdminBaseController
 {
@@ -60,7 +59,7 @@ class AdminSettingController extends AdminBaseController
         ]);
     }
 
-    public function uploadMainVisualImage(Request $request): JsonResponse
+    public function uploadMainVisualImage(Request $request, ImageStorageService $imageStorage): JsonResponse
     {
         if (! $this->authenticatedAdmin($request)) {
             return response()->json(['message' => '管理者認証が必要です。'], 401);
@@ -80,11 +79,7 @@ class AdminSettingController extends AdminBaseController
         }
 
         $file = $validated['image'];
-        $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
-        $fileName = now()->format('Ymd_His').'_'.Str::random(8).'.'.$extension;
-        $path = $file->storeAs('settings/main-visual', $fileName, 'public');
-
-        $setting->update(['image_path' => Storage::url($path)]);
+        $setting->update(['image_path' => $imageStorage->upload($file, 'settings/main-visual')]);
 
         return response()->json([
             'main_visual_setting' => $this->mainVisualSettingResponse($setting->fresh()),

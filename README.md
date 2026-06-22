@@ -136,3 +136,15 @@ VITE_API_URL=https://your-backend-domain.example.com/api
 ```
 
 PAY.JP の秘密鍵は GitHub Pages 側には置かず、必ず Laravel 側の環境変数に設定します。
+
+## 本番画像ストレージ
+
+画像ファイルは Neon DB には保存せず、DB の `image_path` には画像URLのみを保存します。ローカル環境では従来どおり Laravel の `public` ディスクを使用し、Render に次の環境変数がある場合のみ Cloudinary へアップロードします。
+
+```text
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+```
+
+これらは Render の Environment Variables にのみ設定します。`CLOUDINARY_API_SECRET` は GitHub Pages、GitHub Actions のフロントエンド用Variables、Vue の `VITE_*` 変数には設定しません。
