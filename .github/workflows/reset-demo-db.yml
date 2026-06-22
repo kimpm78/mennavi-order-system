@@ -46,4 +46,4 @@ jobs:
           SESSION_DRIVER: file
           QUEUE_CONNECTION: sync
           FILESYSTEM_DISK: public
-        run: php artisan migrate:fresh --seed --force
+        run: php artisan migrate:fresh --seed --force -vvv
