@@ -14,21 +14,21 @@ return new class extends Migration
     {
         // ユーザーテーブルの作成
         Schema::create('users', function (Blueprint $table) {
-            $table->id()->comment('ユーザーID');
-            $table->string('name', 100)->comment('氏名');
-            $table->string('email')->comment('メールアドレス');
-            $table->string('password')->comment('パスワード');
-            $table->string('phone', 20)->nullable()->comment('電話番号');
-            $table->string('postal_code', 10)->nullable()->comment('郵便番号');
-            $table->string('address')->nullable()->comment('住所');
-            $table->string('role', 20)->default('user')->index()->comment('権限');
-            $table->string('status', 20)->default('active')->index()->comment('利用状態');
-            $table->integer('point_balance')->default(0)->comment('保有ポイント');
-            $table->timestamp('email_verified_at')->nullable()->comment('メール認証日時');
-            $table->timestamp('last_login_at')->nullable()->comment('最終ログイン日時');
-            $table->rememberToken()->comment('ログイン保持トークン');
+            $table->id();
+            $table->string('name', 100);
+            $table->string('email');
+            $table->string('password');
+            $table->string('phone', 20)->nullable();
+            $table->string('postal_code', 10)->nullable();
+            $table->string('address')->nullable();
+            $table->string('role', 20)->default('user')->index();
+            $table->string('status', 20)->default('active')->index();
+            $table->integer('point_balance')->default(0);
+            $table->timestamp('email_verified_at')->nullable();
+            $table->timestamp('last_login_at')->nullable();
+            $table->rememberToken();
             $table->timestamps();
-            $table->softDeletes()->comment('削除日時');
+            $table->softDeletes();
 
             // PostgreSQL環境で自動生成される制約名の衝突を避けるため、メールアドレスの一意制約名を明示する
             $table->unique('email', 'users_email_order_system_unique');
