@@ -41,6 +41,17 @@ docker compose exec frontend npm run build
 
 - 公開 URL: https://kimpm78.github.io/mennavi-order-system/
 
+## デモアカウント
+
+公開環境では、以下のデモアカウントでログインして各機能を確認できます。これらは検証用アカウントのため、個人情報や実際の決済情報は入力しないでください。
+
+| 種別 | ログインID（メールアドレス） | パスワード |
+| --- | --- | --- |
+| 利用者 | `test@example.com` | `password123` |
+| 管理者 | `admin@mennavi.local` | `admin1234` |
+
+デモDBは3日に1回リセットされるため、登録・注文などのデータは保持されません。
+
 ## デモDBリセット
 
 GitHub Actions の `Reset Demo Database` workflow で、3日に1回 Neon DB を初期化して Seeder を実行します。
