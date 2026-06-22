@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    // Neon pooler returns only a follow-up transaction error for multi-statement DDL failures.
+    public $withinTransaction = false;
+
     /**
      * Run the migrations.
      */
