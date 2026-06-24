@@ -57,6 +57,7 @@ Route::post('/admin/products/{product}/image', [AdminProductController::class, '
 Route::delete('/admin/products/{product}', [AdminProductController::class, 'destroyProduct']);
 Route::get('/admin/sales', [AdminSalesController::class, 'index']);
 Route::get('/admin/settings', [AdminSettingController::class, 'show']);
+Route::patch('/admin/settings/basic', [AdminSettingController::class, 'updateBasicSettings']);
 Route::patch('/admin/main-visual-setting', [AdminSettingController::class, 'updateMainVisualSetting']);
 Route::post('/admin/main-visual-setting/image', [AdminSettingController::class, 'uploadMainVisualImage']);
 

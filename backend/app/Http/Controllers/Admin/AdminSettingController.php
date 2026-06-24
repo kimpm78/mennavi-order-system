@@ -6,6 +6,7 @@ use App\Models\MainVisualSetting;
 use App\Services\ImageStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdminSettingController extends AdminBaseController
 {
@@ -20,12 +21,33 @@ class AdminSettingController extends AdminBaseController
         }
 
         return response()->json([
-            'settings' => [
-                ['label' => '管理者名', 'value' => $admin->name],
-                ['label' => 'メールアドレス', 'value' => $admin->email],
-                ['label' => '通知', 'value' => '注文・遅延アラートを受信'],
-            ],
+            'settings' => $this->basicSettingsResponse($admin),
             'main_visual_setting' => $this->mainVisualSettingResponse($this->activeMainVisualSetting()),
+        ]);
+    }
+
+    public function updateBasicSettings(Request $request): JsonResponse
+    {
+        $admin = $this->authenticatedAdmin($request);
+        if (! $admin) {
+            return response()->json(['message' => '管理者認証が必要です。'], 401);
+        }
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:100'],
+            'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($admin->id)],
+            'admin_notifications_enabled' => ['sometimes', 'boolean'],
+        ]);
+
+        $admin->update($validated);
+        $freshAdmin = $admin->fresh();
+
+        return response()->json([
+            'settings' => $this->basicSettingsResponse($freshAdmin),
+            'admin' => [
+                'name' => $freshAdmin->name,
+                'email' => $freshAdmin->email,
+            ],
         ]);
     }
 
@@ -92,6 +114,18 @@ class AdminSettingController extends AdminBaseController
             ->where('is_active', true)
             ->orderBy('id')
             ->first();
+    }
+
+    /**
+     * @return array<int, array{key: string, label: string, value: string|bool}>
+     */
+    private function basicSettingsResponse($admin): array
+    {
+        return [
+            ['key' => 'admin_name', 'label' => '管理者名', 'value' => $admin->name],
+            ['key' => 'admin_email', 'label' => 'メールアドレス', 'value' => $admin->email],
+            ['key' => 'admin_notifications_enabled', 'label' => '通知', 'value' => $admin->admin_notifications_enabled],
+        ];
     }
 
     /**

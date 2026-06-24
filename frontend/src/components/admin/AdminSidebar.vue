@@ -19,10 +19,12 @@ type AdminNavItem = {
 
 defineProps<{
   activePage: AdminPageKey
+  mobileOpen?: boolean
 }>()
 
 const emit = defineEmits<{
   selectPage: [page: AdminPageKey]
+  close: []
 }>()
 
 const adminNavItems: AdminNavItem[] = [
@@ -37,7 +39,19 @@ const adminNavItems: AdminNavItem[] = [
 </script>
 
 <template>
-  <aside class="flex flex-col border-r border-red-100 bg-white px-4 py-8 lg:min-h-screen">
+  <div
+    v-if="mobileOpen"
+    class="fixed inset-0 z-40 bg-black/30 lg:hidden"
+    aria-hidden="true"
+    @click="emit('close')"
+  />
+
+  <aside
+    :class="[
+      'fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col border-r border-red-100 bg-white px-4 py-8 shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:w-auto lg:translate-x-0 lg:shadow-none',
+      mobileOpen ? 'translate-x-0' : '',
+    ]"
+  >
     <div class="flex items-center gap-3 px-3">
       <div class="grid h-11 w-11 place-items-center rounded-xl bg-red-700 text-white shadow-sm">
         <Store class="h-6 w-6" />

@@ -153,6 +153,7 @@ return new class extends Migration
             $table->integer('total_amount')->comment('合計金額 / 注文時点の合計金額');
             $table->integer('earned_points')->default(0)->comment('獲得ポイント');
             $table->string('order_status', 20)->default('received')->index()->comment('注文ステータス');
+            $table->timestamp('cooking_started_at')->nullable()->comment('調理開始日時 / 調理中の経過時間算出用');
             $table->string('payment_method', 20)->nullable()->comment('支払方法');
             $table->string('payment_status', 20)->default('pending')->index()->comment('決済状態, refunded');
             $table->string('delivery_staff_name', 50)->nullable()->comment('配送担当者名');

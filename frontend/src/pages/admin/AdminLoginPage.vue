@@ -93,6 +93,7 @@ const {
   salesRowsForPage,
   salesAnalysisBarRows,
   saveAdminStoreProfile,
+  saveBasicSettings,
   saveMainVisualSetting,
   selectAdminPage,
   selectAdminStore,
@@ -364,6 +365,7 @@ function formatNotificationTime(value: string | null | undefined) {
         :main-visual-form="mainVisualForm"
         :admin-page-loading="adminPageLoading"
         @upload-main-visual-image="setMainVisualImage"
+        @save-basic-settings="saveBasicSettings"
         @save-main-visual-setting="saveMainVisualSetting"
       />
     </div>

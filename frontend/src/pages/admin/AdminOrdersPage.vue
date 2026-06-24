@@ -15,6 +15,8 @@ type AdminOrder = {
   order_id: number | string
   order_number?: string | null
   store_name?: string | null
+  store_invoice_number?: string | null
+  applied_subscription_code?: string | null
   customer_name?: string | null
   recipient_name?: string | null
   customer_phone?: string | null
@@ -102,6 +104,8 @@ const orderCustomerName = (order: AdminOrder) => {
 const orderStoreName = (order: AdminOrder) => {
   return order.store_name || order.items?.find((item) => item.store_name)?.store_name || '店舗名未登録'
 }
+
+const hasPlusBenefit = (order: AdminOrder) => order.applied_subscription_code === 'mennavi_plus'
 
 const orderDateValue = (order: AdminOrder) => {
   return order.order_date || order.ordered_at || order.created_at || null
@@ -291,10 +295,21 @@ const confirmCancelOrder = () => {
         >
           <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
             <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <p class="text-sm font-black text-neutral-900">
-                  注文番号 #{{ order.order_number || order.order_id }}
-                </p>
+              <div class="flex flex-wrap items-start gap-2">
+                <div class="min-w-0">
+                  <p class="text-sm font-black text-neutral-900">
+                    注文番号 #{{ order.order_number || order.order_id }}
+                  </p>
+                  <div class="mt-1 flex min-w-0 items-center gap-2">
+                    <p class="truncate text-xs font-bold text-neutral-500">{{ orderStoreName(order) }}</p>
+                    <span
+                      v-if="hasPlusBenefit(order)"
+                      class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800"
+                    >
+                      麺ナビ Plus
+                    </span>
+                  </div>
+                </div>
 
                 <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">
                   {{ orderStatusLabel(order.order_status) }}
@@ -389,6 +404,15 @@ const confirmCancelOrder = () => {
             <h2 class="mt-1 text-xl font-black text-neutral-900">
               注文番号 #{{ selectedOrder.order_number || selectedOrder.order_id }}
             </h2>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+              <p class="text-sm font-bold text-neutral-500">{{ orderStoreName(selectedOrder) }}</p>
+              <span
+                v-if="hasPlusBenefit(selectedOrder)"
+                class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800"
+              >
+                麺ナビ Plus
+              </span>
+            </div>
           </div>
 
           <button
@@ -422,10 +446,6 @@ const confirmCancelOrder = () => {
           </div>
 
           <dl class="grid gap-4 rounded-xl border border-red-100 bg-red-50/40 p-4 text-sm md:grid-cols-2">
-            <div class="md:col-span-2">
-              <dt class="font-black text-neutral-500">店舗名</dt>
-              <dd class="mt-1 font-bold text-neutral-900">{{ orderStoreName(selectedOrder) }}</dd>
-            </div>
             <div>
               <dt class="font-black text-neutral-500">注文者</dt>
               <dd class="mt-1 font-bold text-neutral-900">{{ orderCustomerName(selectedOrder) }}</dd>
@@ -434,6 +454,12 @@ const confirmCancelOrder = () => {
               <dt class="font-black text-neutral-500">注文日時</dt>
               <dd class="mt-1 font-bold text-neutral-900">
                 {{ formatOrderDateTime(orderDateValue(selectedOrder)) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="font-black text-neutral-500">インボイス番号</dt>
+              <dd class="mt-1 font-bold text-neutral-900">
+                {{ selectedOrder.store_invoice_number || '未登録' }}
               </dd>
             </div>
             <div>

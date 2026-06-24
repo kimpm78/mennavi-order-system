@@ -942,6 +942,41 @@ export function useAdminPage(
     }
   }
 
+  async function saveBasicSettings(payload: {
+    name?: string
+    email?: string
+    admin_notifications_enabled?: boolean
+  }) {
+    const token = getAdminToken()
+    if (!token) {
+      return
+    }
+
+    adminPageLoading.value = true
+    errorMessage.value = ''
+
+    try {
+      const response = await apiRequest<{
+        settings: AdminSettingRow[]
+        admin: Pick<User, 'name' | 'email'>
+      }>('/admin/settings/basic', {
+        method: 'PATCH',
+        headers: authHeaders(token),
+        body: JSON.stringify(payload),
+      })
+
+      settingRows.value = response.settings
+      if (admin.value) {
+        admin.value = { ...admin.value, ...response.admin }
+      }
+      showAdminToast('基本設定を更新しました。')
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '基本設定の更新に失敗しました。'
+    } finally {
+      adminPageLoading.value = false
+    }
+  }
+
   async function uploadMainVisualImage(file: File) {
     const token = getAdminToken()
 
@@ -1166,6 +1201,7 @@ export function useAdminPage(
     salesRowsForPage,
     salesAnalysisBarRows,
     saveAdminStoreProfile,
+    saveBasicSettings,
     saveMainVisualSetting,
     selectAdminPage,
     selectAdminStore,

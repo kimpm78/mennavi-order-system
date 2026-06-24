@@ -17,6 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   selectPage: [page: AdminPageKey]
+  toggleSidebar: []
   openNotification: [notification: AdminNotification]
   logout: []
 }>()
@@ -75,7 +76,14 @@ onBeforeUnmount(() => {
 <template>
   <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-red-100 bg-white/95 px-4 backdrop-blur lg:px-8">
     <div class="flex min-w-0 items-center gap-3">
-      <Menu class="h-5 w-5 text-red-700 lg:hidden" />
+      <button
+        class="grid h-10 w-10 place-items-center rounded-lg text-red-700 hover:bg-red-50 lg:hidden"
+        type="button"
+        aria-label="管理画面メニューを開く"
+        @click="emit('toggleSidebar')"
+      >
+        <Menu class="h-5 w-5" />
+      </button>
       <div class="min-w-0">
         <p class="truncate text-lg font-black text-neutral-900">{{ title }}</p>
         <p class="text-xs font-bold text-neutral-500">管理者用ページ</p>

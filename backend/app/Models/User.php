@@ -30,6 +30,7 @@ class User extends Authenticatable
         'address',
         'role',
         'status',
+        'admin_notifications_enabled',
         'point_balance',
         'last_login_at',
     ];
@@ -55,6 +56,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
             'point_balance' => 'integer',
+            'admin_notifications_enabled' => 'boolean',
             'password' => 'hashed',
             'deleted_at' => 'datetime',
         ];
