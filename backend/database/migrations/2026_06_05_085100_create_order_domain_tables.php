@@ -277,7 +277,7 @@ return new class extends Migration
             $table->string('category', 50)->comment('お問い合わせ種別');
             $table->string('order_number', 50)->nullable()->comment('注文番号 / 任意');
             $table->text('message')->comment('お問い合わせ内容');
-            $table->string('status', 20)->default('new')->index()->comment('対応ステータス / new, in_progress, resolved, closed');
+            $table->string('status', 20)->default('new')->index()->comment('対応ステータス / new, in_progress, resolved');
             $table->text('admin_note')->nullable()->comment('管理者メモ');
             $table->string('ip_address', 45)->nullable()->comment('送信元IPアドレス');
             $table->string('user_agent')->nullable()->comment('ユーザーエージェント');
@@ -398,6 +398,6 @@ return new class extends Migration
         DB::statement("ALTER TABLE payments ADD CONSTRAINT payments_provider_check CHECK (provider IN ('payjp', 'paypay', 'cash'))");
         DB::statement("ALTER TABLE payments ADD CONSTRAINT payments_payment_status_check CHECK (payment_status IN ('pending', 'paid', 'failed', 'partial_refunded', 'refunded'))");
         DB::statement('ALTER TABLE reviews ADD CONSTRAINT reviews_rating_range CHECK (rating >= 1 AND rating <= 5)');
-        DB::statement("ALTER TABLE contact_messages ADD CONSTRAINT contact_messages_status_check CHECK (status IN ('new', 'in_progress', 'resolved', 'closed'))");
+        DB::statement("ALTER TABLE contact_messages ADD CONSTRAINT contact_messages_status_check CHECK (status IN ('new', 'in_progress', 'resolved'))");
     }
 };
