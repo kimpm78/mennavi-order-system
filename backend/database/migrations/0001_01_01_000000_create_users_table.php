@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('address')->nullable();
             $table->string('role', 20)->default('user');
             $table->string('status', 20)->default('active');
+            $table->boolean('admin_notifications_enabled')->default(true);
             $table->integer('point_balance')->default(0);
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('last_login_at')->nullable();

@@ -53,21 +53,11 @@ const addHoliday = (form: StoreProfileForm, event: Event) => {
 
 <template>
   <div class="grid gap-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
       <div>
         <p class="text-sm font-bold text-red-600">店舗・メニュー管理</p>
         <h1 class="text-2xl font-black text-neutral-900">店舗情報とメニューを管理</h1>
       </div>
-
-      <button
-        class="inline-flex h-11 items-center gap-2 rounded-lg bg-red-700 px-4 text-sm font-black text-white shadow-sm hover:bg-red-800 disabled:opacity-60"
-        type="button"
-        :disabled="!selectedAdminStore || adminPageLoading"
-        @click="emit('openProductModal')"
-      >
-        <Plus class="h-4 w-4" />
-        メニュー追加
-      </button>
     </div>
 
     <section
@@ -117,6 +107,7 @@ const addHoliday = (form: StoreProfileForm, event: Event) => {
               />
             </label>
           </div>
+          <p class="mt-2 text-xs font-bold text-neutral-400">店舗画像を選択すると自動で保存されます。</p>
 
           <div class="mt-5 grid gap-4">
             <label class="grid gap-2 text-sm font-black text-[#5c4644]">

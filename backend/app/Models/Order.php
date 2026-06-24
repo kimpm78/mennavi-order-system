@@ -27,6 +27,7 @@ class Order extends Model
         'total_amount',
         'earned_points',
         'order_status',
+        'cooking_started_at',
         'payment_method',
         'payment_status',
         'delivery_staff_name',
@@ -45,6 +46,7 @@ class Order extends Model
             'tax_rate' => 'decimal:2',
             'earned_points' => 'integer',
             'ordered_at' => 'datetime',
+            'cooking_started_at' => 'datetime',
             'delivered_at' => 'datetime',
             'received_at' => 'datetime',
         ];

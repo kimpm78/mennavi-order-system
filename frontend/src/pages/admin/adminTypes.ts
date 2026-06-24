@@ -95,8 +95,9 @@ export type AdminContactMessageRow = {
 }
 
 export type AdminSettingRow = {
+  key: 'admin_name' | 'admin_email' | 'admin_notifications_enabled'
   label: string
-  value: string
+  value: string | boolean
   category?: string | null
   description?: string | null
 }

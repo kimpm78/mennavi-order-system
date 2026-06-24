@@ -71,7 +71,7 @@ class AdminDashboardController extends AdminBaseController
             return 0;
         }
 
-        return (int) round($orders->avg(fn (Order $order) => $order->ordered_at->diffInMinutes(now())));
+        return (int) round($orders->avg(fn (Order $order) => $this->cookingStartedAt($order)->diffInMinutes(now())));
     }
 
     /**
@@ -140,9 +140,10 @@ class AdminDashboardController extends AdminBaseController
                 ->join('、'),
             'note' => $order->note ?? '-',
             'type' => $order->receipt_type === 'delivery' ? 'デリバリー' : '店内',
-            'elapsed_minutes' => $order->ordered_at ? $order->ordered_at->diffInMinutes(now()) : 0,
+            'elapsed_minutes' => $this->elapsedMinutes($order),
             'status' => $order->order_status,
             'order_status' => $order->order_status,
+            'cooking_started_at' => $order->cooking_started_at?->toISOString(),
             'payment_status' => $order->payment_status,
             'receipt_type' => $order->receipt_type,
             'delivery_staff_name' => $order->delivery_staff_name,
@@ -161,5 +162,19 @@ class AdminDashboardController extends AdminBaseController
                 'store_name' => $item->product?->store?->name,
             ])->values(),
         ];
+    }
+
+    private function cookingStartedAt(Order $order)
+    {
+        return $order->cooking_started_at ?? $order->ordered_at ?? now();
+    }
+
+    private function elapsedMinutes(Order $order): int
+    {
+        $startedAt = $order->order_status === 'cooking'
+            ? $this->cookingStartedAt($order)
+            : $order->ordered_at;
+
+        return $startedAt ? $startedAt->diffInMinutes(now()) : 0;
     }
 }

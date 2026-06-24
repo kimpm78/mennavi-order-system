@@ -38,6 +38,10 @@ class AdminOrderController extends AdminBaseController
         $wasCanceled = $order->order_status === 'canceled';
         $nextValues = ['order_status' => $validated['order_status']];
 
+        if ($validated['order_status'] === 'cooking' && $order->order_status !== 'cooking') {
+            $nextValues['cooking_started_at'] = now();
+        }
+
         if ($validated['order_status'] === 'delivering') {
             if ($order->receipt_type !== 'delivery') {
                 return response()->json(['message' => '配達注文のみ配送中に変更できます。'], 422);
@@ -78,16 +82,19 @@ class AdminOrderController extends AdminBaseController
             'number' => '#' . $order->id,
             'order_number' => $order->order_number,
             'customer_name' => $order->customer_name,
-            'store_name' => $order->items->first()?->product?->store?->name,
+            'store_name' => $order->store_name_snapshot ?? $order->items->first()?->product?->store?->name,
+            'store_invoice_number' => $order->store_invoice_number,
+            'applied_subscription_code' => $order->applied_subscription_code,
             'customer_phone' => $order->customer_phone ?? $order->user?->phone,
             'recipient_phone' => $order->customer_phone ?? $order->user?->phone,
             'shipping_address' => $order->user?->address,
             'title' => $order->items->map(fn ($item) => "{$item->product_name} ×{$item->quantity}")->join('、'),
             'note' => $order->note ?? '-',
             'type' => $order->receipt_type === 'delivery' ? 'デリバリー' : '店内',
-            'elapsed_minutes' => $order->ordered_at ? $order->ordered_at->diffInMinutes(now()) : 0,
+            'elapsed_minutes' => $this->elapsedMinutes($order),
             'status' => $order->order_status,
             'order_status' => $order->order_status,
+            'cooking_started_at' => $order->cooking_started_at?->toISOString(),
             'payment_status' => $order->payment_status,
             'receipt_type' => $order->receipt_type,
             'delivery_staff_name' => $order->delivery_staff_name,
@@ -108,5 +115,14 @@ class AdminOrderController extends AdminBaseController
                 'store_name' => $item->product?->store?->name,
             ])->values(),
         ];
+    }
+
+    private function elapsedMinutes(Order $order): int
+    {
+        $startedAt = $order->order_status === 'cooking'
+            ? ($order->cooking_started_at ?? $order->ordered_at)
+            : $order->ordered_at;
+
+        return $startedAt ? $startedAt->diffInMinutes(now()) : 0;
     }
 }

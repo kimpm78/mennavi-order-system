@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Eye, EyeOff } from 'lucide-vue-next'
+import { Eye, EyeOff, LoaderCircle } from 'lucide-vue-next'
 import AuthMessage from '../auth/AuthMessage.vue'
 
 type LoginForm = {
@@ -56,8 +56,9 @@ const showPassword = ref(false)
     <AuthMessage type="error" :message="errorMessage" />
     <AuthMessage type="success" :message="successMessage" />
 
-    <button class="primary-button" type="submit" :disabled="loading">
-      {{ loading ? 'ログイン中...' : '管理者ログイン' }}
+    <button class="primary-button inline-flex items-center justify-center gap-2" type="submit" :disabled="loading">
+      <LoaderCircle v-if="loading" class="h-4 w-4 animate-spin" aria-hidden="true" />
+      <span>{{ loading ? 'ログイン中...' : '管理者ログイン' }}</span>
     </button>
 
     <button class="text-link auth-switch-link" type="button" @click="emit('userLogin')">

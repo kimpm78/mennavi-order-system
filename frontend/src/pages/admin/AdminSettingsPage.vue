@@ -1,10 +1,11 @@
 <script setup lang="ts">
-
 import FallbackImage from '@/components/common/FallbackImage.vue'
-import { Bell, CreditCard, ImageUp, Settings, ShieldCheck, Store, Truck } from 'lucide-vue-next'
+import { Bell, CreditCard, ImageUp, Pencil, Settings, ShieldCheck, Store, Truck, X } from 'lucide-vue-next'
+import { ref } from 'vue'
 import type { MainVisualSetting } from './adminTypes'
 
 type SettingRow = {
+  key: 'admin_name' | 'admin_email' | 'admin_notifications_enabled'
   label: string
   value?: string | number | boolean | null
   description?: string | null
@@ -28,8 +29,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   uploadMainVisualImage: [event: Event]
+  saveBasicSettings: [payload: { name?: string; email?: string; admin_notifications_enabled?: boolean }]
   saveMainVisualSetting: []
 }>()
+
+const editingRow = ref<SettingRow | null>(null)
+const editingValue = ref('')
+const editingNotificationEnabled = ref(true)
+const isBasicSettingConfirmationOpen = ref(false)
 
 const categoryIconMap = {
   store: Store,
@@ -89,18 +96,54 @@ const groupedSettings = () => {
     return groups
   }, {})
 }
+
+const openBasicSettingEditor = (row: SettingRow) => {
+  editingRow.value = row
+  editingValue.value = typeof row.value === 'string' ? row.value : ''
+  editingNotificationEnabled.value = Boolean(row.value)
+  isBasicSettingConfirmationOpen.value = false
+}
+
+const closeBasicSettingEditor = () => {
+  editingRow.value = null
+  editingValue.value = ''
+  isBasicSettingConfirmationOpen.value = false
+}
+
+const openBasicSettingConfirmation = () => {
+  if (!editingRow.value) {
+    return
+  }
+
+  if (editingRow.value.key !== 'admin_notifications_enabled' && !editingValue.value.trim()) {
+    return
+  }
+
+  isBasicSettingConfirmationOpen.value = true
+}
+
+const saveBasicSetting = () => {
+  if (!editingRow.value) {
+    return
+  }
+
+  const payload = editingRow.value.key === 'admin_name'
+    ? { name: editingValue.value.trim() }
+    : editingRow.value.key === 'admin_email'
+      ? { email: editingValue.value.trim() }
+      : { admin_notifications_enabled: editingNotificationEnabled.value }
+
+  emit('saveBasicSettings', payload)
+  closeBasicSettingEditor()
+}
 </script>
 
 <template>
   <div class="grid gap-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
       <div>
         <p class="text-sm font-bold text-red-600">設定</p>
         <h1 class="text-2xl font-black text-neutral-900">管理画面設定</h1>
-      </div>
-
-      <div class="rounded-full border border-red-100 bg-white px-4 py-2 text-sm font-bold text-neutral-600 shadow-sm">
-        {{ adminPageLoading ? '読み込み中...' : `${settingRows.length}件` }}
       </div>
     </div>
 
@@ -192,9 +235,6 @@ const groupedSettings = () => {
               <h2 class="text-lg font-black tracking-normal">
                 {{ resolveCategoryLabel(String(category)) }}
               </h2>
-              <p class="mt-1 text-xs font-bold text-neutral-500">
-                {{ rows.length }}件の設定項目
-              </p>
             </div>
           </div>
 
@@ -214,11 +254,22 @@ const groupedSettings = () => {
                 </p>
               </div>
 
-              <span
-                class="inline-flex min-h-9 max-w-full items-center justify-center rounded-full bg-red-50 px-4 text-sm font-black text-red-800 md:justify-end"
-              >
-                {{ settingValue(row.value) }}
-              </span>
+              <div class="flex items-center gap-2 md:justify-end">
+                <span
+                  class="inline-flex min-h-9 max-w-full items-center justify-center rounded-full bg-red-50 px-4 text-sm font-black text-red-800"
+                >
+                  {{ settingValue(row.value) }}
+                </span>
+                <button
+                  class="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-red-200 bg-white px-3 text-xs font-black text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  type="button"
+                  :disabled="adminPageLoading"
+                  @click="openBasicSettingEditor(row)"
+                >
+                  <Pencil class="h-3.5 w-3.5" />
+                  編集
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -244,15 +295,11 @@ const groupedSettings = () => {
         </div>
 
         <div class="mt-5 grid gap-4 rounded-xl bg-red-50 p-4 text-sm font-bold leading-6 text-red-900">
-          <p>店舗情報、決済、配送、通知などの設定を確認できます。</p>
-          <p>編集機能は必要に応じて後続対応で追加する想定です。</p>
+          <p>管理者情報と通知設定を編集できます。</p>
+          <p>メイン画面の画像、タイトル、説明文もここから更新できます。</p>
         </div>
 
         <div class="mt-6 grid gap-3 text-sm font-bold text-neutral-600">
-          <div class="flex items-center justify-between gap-3 rounded-lg border border-red-100 px-4 py-3">
-            <span>設定項目数</span>
-            <span class="font-black text-red-700">{{ settingRows.length }}件</span>
-          </div>
           <div class="flex items-center justify-between gap-3 rounded-lg border border-red-100 px-4 py-3">
             <span>状態</span>
             <span class="font-black text-red-700">{{ adminPageLoading ? '更新中' : '確認済み' }}</span>
@@ -260,5 +307,110 @@ const groupedSettings = () => {
         </div>
       </aside>
     </section>
+
+    <div
+      v-if="editingRow"
+      class="fixed inset-0 z-50 grid place-items-center bg-black/40 px-4 py-6"
+      @click.self="closeBasicSettingEditor"
+    >
+      <section class="w-full max-w-md rounded-xl bg-white shadow-2xl">
+        <div class="flex items-start justify-between gap-4 border-b border-red-100 px-6 py-5">
+          <div>
+            <p class="text-sm font-black text-red-700">基本設定</p>
+            <h2 class="mt-1 text-xl font-black text-neutral-900">
+              {{ isBasicSettingConfirmationOpen ? '変更確認' : `${editingRow.label}を編集` }}
+            </h2>
+          </div>
+          <button
+            class="grid h-9 w-9 place-items-center rounded-lg border border-red-100 text-red-700 hover:bg-red-50"
+            type="button"
+            aria-label="編集を閉じる"
+            @click="closeBasicSettingEditor"
+          >
+            <X class="h-4 w-4" />
+          </button>
+        </div>
+
+        <div class="p-6">
+          <template v-if="!isBasicSettingConfirmationOpen">
+            <label
+              v-if="editingRow.key !== 'admin_notifications_enabled'"
+              class="grid gap-2 text-sm font-black text-neutral-700"
+            >
+              {{ editingRow.label }}
+              <input
+                v-model="editingValue"
+                :type="editingRow.key === 'admin_email' ? 'email' : 'text'"
+                class="h-12 rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-neutral-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                :maxlength="editingRow.key === 'admin_name' ? 100 : 255"
+              />
+            </label>
+
+            <div v-else class="flex items-center justify-between gap-4 rounded-lg border border-red-100 bg-red-50/40 p-4">
+              <div>
+                <p class="text-sm font-black text-neutral-900">注文・遅延アラートを受信</p>
+                <p class="mt-1 text-xs font-bold text-neutral-500">管理画面の通知表示を切り替えます。</p>
+              </div>
+              <button
+                class="relative h-7 w-12 shrink-0 rounded-full transition"
+                :class="editingNotificationEnabled ? 'bg-red-700' : 'bg-neutral-300'"
+                type="button"
+                role="switch"
+                :aria-checked="editingNotificationEnabled"
+                aria-label="通知を切り替える"
+                @click="editingNotificationEnabled = !editingNotificationEnabled"
+              >
+                <span
+                  class="absolute top-1 h-5 w-5 rounded-full bg-white shadow transition"
+                  :class="editingNotificationEnabled ? 'left-6' : 'left-1'"
+                />
+              </button>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+              <button
+                class="h-11 rounded-lg border border-neutral-200 px-5 text-sm font-black text-neutral-600 hover:bg-neutral-50"
+                type="button"
+                @click="closeBasicSettingEditor"
+              >
+                キャンセル
+              </button>
+              <button
+                class="h-11 rounded-lg bg-red-700 px-5 text-sm font-black text-white hover:bg-red-800"
+                type="button"
+                @click="openBasicSettingConfirmation"
+              >
+                確認
+              </button>
+            </div>
+          </template>
+
+          <template v-else>
+            <p class="text-base font-black text-neutral-900">本当に変更しますか？</p>
+            <p class="mt-2 text-sm font-bold leading-6 text-neutral-600">
+              {{ editingRow.label }}：
+              {{ editingRow.key === 'admin_notifications_enabled' ? (editingNotificationEnabled ? '有効' : '無効') : editingValue }}
+            </p>
+            <div class="mt-6 flex justify-end gap-3">
+              <button
+                class="h-11 rounded-lg border border-neutral-200 px-5 text-sm font-black text-neutral-600 hover:bg-neutral-50"
+                type="button"
+                @click="isBasicSettingConfirmationOpen = false"
+              >
+                いいえ
+              </button>
+              <button
+                class="h-11 rounded-lg bg-red-700 px-5 text-sm font-black text-white hover:bg-red-800 disabled:opacity-50"
+                type="button"
+                :disabled="adminPageLoading"
+                @click="saveBasicSetting"
+              >
+                はい
+              </button>
+            </div>
+          </template>
+        </div>
+      </section>
+    </div>
   </div>
 </template>

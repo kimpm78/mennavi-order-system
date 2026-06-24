@@ -4,6 +4,7 @@
 
 import AdminHeader from '../../components/admin/AdminHeader.vue'
 import AdminSidebar from '../../components/admin/AdminSidebar.vue'
+import { ref } from 'vue'
 import type { AdminNotification, AdminPageKey } from './adminTypes'
 
 type AdminUser = {
@@ -19,11 +20,18 @@ defineProps<{
   notifications?: AdminNotification[]
 }>()
 
+const isMobileSidebarOpen = ref(false)
+
 const emit = defineEmits<{
   selectPage: [page: AdminPageKey]
   openNotification: [notification: AdminNotification]
   logout: []
 }>()
+
+const selectPage = (page: AdminPageKey) => {
+  isMobileSidebarOpen.value = false
+  emit('selectPage', page)
+}
 </script>
 
 <template>
@@ -31,7 +39,9 @@ const emit = defineEmits<{
     <div class="grid min-h-screen lg:grid-cols-[280px_minmax(0,1fr)]">
       <AdminSidebar
         :active-page="activePage"
-        @select-page="emit('selectPage', $event)"
+        :mobile-open="isMobileSidebarOpen"
+        @close="isMobileSidebarOpen = false"
+        @select-page="selectPage"
       />
 
       <div class="min-w-0">
@@ -40,7 +50,8 @@ const emit = defineEmits<{
           :title="title"
           :loading="loading"
           :notifications="notifications"
-          @select-page="emit('selectPage', $event)"
+          @toggle-sidebar="isMobileSidebarOpen = true"
+          @select-page="selectPage"
           @open-notification="emit('openNotification', $event)"
           @logout="emit('logout')"
         />
