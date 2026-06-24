@@ -60,7 +60,6 @@ const nextStatus = (status: string) => {
   const transitions: Record<string, string> = {
     new: 'in_progress',
     in_progress: 'resolved',
-    resolved: 'closed',
   }
 
   return transitions[status]
@@ -70,7 +69,6 @@ const nextStatusActionLabel = (status: string) => {
   const labels: Record<string, string> = {
     new: '対応開始',
     in_progress: '解決済みにする',
-    resolved: '終了する',
   }
 
   return labels[status]
@@ -188,6 +186,13 @@ const formatDateTime = (value?: string | null) => {
             {{ nextStatusActionLabel(selectedMessage.status) }}
           </button>
         </div>
+
+        <p
+          v-if="selectedMessage"
+          class="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-900"
+        >
+          お問い合わせには実際にメールで対応し、対応完了後に「解決済みにする」を選択してください。
+        </p>
 
         <dl v-if="selectedMessage" class="mt-6 grid gap-4 text-sm">
           <div class="grid gap-1 rounded-lg bg-neutral-50 p-4">

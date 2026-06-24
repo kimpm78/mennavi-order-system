@@ -41,7 +41,7 @@ class AdminContactMessageController extends AdminBaseController
         }
 
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:new,in_progress,resolved,closed'],
+            'status' => ['required', 'string', 'in:new,in_progress,resolved'],
         ]);
 
         $contactMessage->update([
